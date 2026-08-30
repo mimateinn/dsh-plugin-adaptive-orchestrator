@@ -44,13 +44,34 @@ describe("durable adaptive scheduler", () => {
         { global: 5, provider: 3, account: 2, model: 4 },
       ),
     ).toBe(4));
+  it("requires the latest eligible 20 error rate to be strictly below five percent", () => {
+    const outcomes = Array.from({ length: 20 }, (_, i) => ({
+      result: (i === 0 ? "provider-error" : "success") as
+        "provider-error" | "success",
+      latencyMs: 100,
+      finishedAt: i,
+    }));
+    expect(
+      scaleSafeSlots({ safeSlots: 1, lastIncreaseAt: 0, outcomes }, 60000),
+    ).toBe(1);
+    expect(
+      scaleSafeSlots(
+        {
+          safeSlots: 1,
+          lastIncreaseAt: 0,
+          outcomes: outcomes.map((o) => ({ ...o, result: "success" as const })),
+        },
+        60000,
+      ),
+    ).toBe(2);
+  });
   it("scales out one per minute and halves immediately", () => {
     expect(
       scaleSafeSlots(
         {
           safeSlots: 1,
           lastIncreaseAt: 0,
-          outcomes: Array.from({ length: 5 }, (_, i) => ({
+          outcomes: Array.from({ length: 20 }, (_, i) => ({
             result: "success" as const,
             latencyMs: 100,
             finishedAt: i,
@@ -98,7 +119,9 @@ describe("durable adaptive scheduler", () => {
     expect(leases.map((x) => x.requestId)).toEqual(["i1", "i2", "b1"]);
     for (const lease of leases) s.release(lease.leaseId, lease.attemptId);
     s.enqueue(req("b2", "background"));
-    expect(s.tick([route("r")], 40000)[0]?.requestId).toBe("b2");
+    const promoted = s.tick([route("r")], 40000)[0]!;
+    expect(promoted.requestId).toBe("b2");
+    expect(s.release(promoted.leaseId, promoted.attemptId)).toBe(true);
   });
   it("CAS rejects stale revisions", () => {
     const st = new MemoryStateStore();
@@ -125,13 +148,16 @@ describe("durable adaptive scheduler", () => {
       ),
     ).toBe(false);
   });
-  it("releases exactly once and stale attempts cannot release", () => {
+  it("releases only the exact lease and exact current attempt", () => {
     const s = createScheduler(new MemoryStateStore());
-    s.enqueue(req("1", "interactive"));
+    s.enqueue(
+      req("request-collides-with-lease", "interactive", "r", "attempt-current"),
+    );
     const l = s.tick([route("r")], 0)[0]!;
-    expect(s.release(l.leaseId, "wrong")).toBe(false);
-    expect(s.release(l.leaseId, "1")).toBe(true);
-    expect(s.release(l.leaseId, "1")).toBe(false);
+    expect(s.release(l.requestId, l.attemptId)).toBe(false);
+    expect(s.release(l.leaseId, "attempt-stale")).toBe(false);
+    expect(s.release(l.leaseId, l.attemptId)).toBe(true);
+    expect(s.release(l.leaseId, l.attemptId)).toBe(false);
   });
   it("cancels queued work and revokes armed fences", () => {
     const s = createScheduler(new MemoryStateStore());
@@ -274,16 +300,25 @@ describe("adversarial scheduler specification", () => {
     expect(deterministicBackoff("r", 3, 7)).toBe(30625);
     expect(deterministicBackoff("r", 99, 7)).toBe(483013);
   });
-  it("cancellation cannot release a consumed fence invocation", () => {
-    const s = createScheduler(new MemoryStateStore());
-    s.enqueue(req("1", "interactive"));
-    const l = s.tick([route("r")], 0)[0]!;
-    expect(
-      s.consumeFence(l.fenceId, { settings: 1, model: 1, capability: 1 }, 1),
-    ).toBe(true);
-    expect(s.cancel("1")).toBe(true);
-    expect(s.release(l.leaseId, "1")).toBe(true);
-  });
+  it.each(["cancel", "pause", "remove", "missing"] as const)(
+    "%s after consumption records cancellation and waits for provider terminal release",
+    (reason) => {
+      const store = new MemoryStateStore();
+      const s = createScheduler(store);
+      s.enqueue(req(reason, "interactive"));
+      const l = s.tick([route("r")], 0)[0]!;
+      expect(
+        s.consumeFence(l.fenceId, { settings: 1, model: 1, capability: 1 }, 1),
+      ).toBe(true);
+      expect(s.cancel(reason, reason)).toBe(true);
+      const pending = store
+        .read()
+        .state.leases.find((x) => x.leaseId === l.leaseId)!;
+      expect(pending).toMatchObject({ state: "active", cancellation: reason });
+      expect(s.release(l.leaseId, l.attemptId)).toBe(true);
+      expect(s.release(l.leaseId, l.attemptId)).toBe(false);
+    },
+  );
   it("revokes and releases an expired armed fence when consumption is attempted", () => {
     const s = createScheduler(new MemoryStateStore());
     s.enqueue(req("1", "interactive"));

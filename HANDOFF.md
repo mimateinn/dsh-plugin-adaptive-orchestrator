@@ -9,9 +9,10 @@
 - src/contracts, src/core, src/scheduler, src/evaluation, src/audit, tests/unit — pure policy core and RED-first tests.
 - docs/FEATURE_MAP.md, docs/DECISIONS.md — implemented module relationships and pure-core boundary.
 - Official sibling checkout commit 54ee6b6f6 — generic SubagentRuntime admission service and lifecycle integration.
-**Next:** Integrate delegated immutable delegation roles and authoritative AgentTeams spawn/claim admission; repair independent pure-core review findings; then implement host/plugin settings and public subscription-usage adapter.
+**Next:** Integrate delegated immutable delegation roles and authoritative AgentTeams spawn/claim admission; repair independent findings AO-CONTRACT-001, AO-SCHED-001/AO-H01/AO-H02, AO-EVAL-001, AO-AUDIT-001/AO-H03, and AO-GATE-001; then implement host/plugin settings and public subscription-usage adapter.
 **Important state:** Global support remains fail-closed and must not be claimed yet. AgentTeams admission and immutable roles are in progress. Official checkout is clean and ahead one committed subagent seam before new delegated edits. Public plugin remote is https://github.com/mimateinn/dsh-plugin-adaptive-orchestrator.
-**Quick verification:** plugin: pnpm check => 50/50 tests and build pass. DSH: focused SubagentRuntime service+continuation => 156/156 tests; tsc package => pass.
+**Quick verification:** plugin: pnpm check => 50/50 tests and build pass, but independent review marks this gate incomplete for acceptance. DSH: focused SubagentRuntime service+continuation => 156/156 tests; tsc package => pass.
+**Independent review:** reviewer 58161356-e419-4513-87fd-90422e548d24 on frozen commit 3c77f945 returned CHANGES_REQUIRED; high findings are recorded in Next and require re-review after repair.
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.

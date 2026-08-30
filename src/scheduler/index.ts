@@ -30,6 +30,7 @@ export type Lease = {
   lane: Lane;
   state: "active" | "orphaned" | "released";
   orphanedAt?: number;
+  cancellation?: "cancel" | "pause" | "remove" | "missing";
 };
 export type DispatchFence = {
   id: string;
@@ -163,6 +164,8 @@ export function scaleSafeSlots(
   if (
     lastFive.length === 5 &&
     lastFive.every((o) => o.result === "success") &&
+    last.length === 20 &&
+    last.filter((o) => o.result !== "success").length / last.length < 0.05 &&
     !last.some((o) => o.result === "rate-limited") &&
     p95 <= baseline * 1.5 &&
     now - x.lastIncreaseAt >= 60000
@@ -401,7 +404,10 @@ export function createScheduler(
         return true;
       });
     },
-    cancel(requestId: string) {
+    cancel(
+      requestId: string,
+      reason: "cancel" | "pause" | "remove" | "missing" = "cancel",
+    ) {
       return mutate((s) => {
         const i = s.queue.findIndex((q) => q.requestId === requestId);
         if (i >= 0) {
@@ -412,6 +418,7 @@ export function createScheduler(
           (x) => x.requestId === requestId && x.state !== "released",
         );
         if (!l) return false;
+        l.cancellation = reason;
         const f = s.fences.find((x) => x.leaseId === l.leaseId);
         if (f?.state === "armed") {
           f.state = "revoked";
@@ -422,9 +429,7 @@ export function createScheduler(
     },
     release(leaseId: string, attemptId: string) {
       return mutate((s) => {
-        const l = s.leases.find(
-          (x) => x.leaseId === leaseId || x.requestId === leaseId,
-        );
+        const l = s.leases.find((x) => x.leaseId === leaseId);
         if (!l || l.attemptId !== attemptId || l.state === "released")
           return false;
         l.state = "released";
