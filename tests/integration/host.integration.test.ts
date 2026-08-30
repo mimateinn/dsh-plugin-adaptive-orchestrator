@@ -90,11 +90,29 @@ async function mount(config: Record<string, unknown>) {
 }
 
 describe("host integration smoke (headless)", () => {
-  it("bypasses everything when Config.enabled is false", async () => {
-    const { admission, systemPrompt } = await mount({ enabled: false });
-    expect(admission.registered).toBe(0);
-    expect(admission.taskClaimRegistered).toBe(0);
-    expect(systemPrompt.sections).toEqual([]);
+  it("registers inert hooks when the durable toggle is off", async () => {
+    const profileDirectory = dir();
+    const { admission, systemPrompt } = await mount({
+      enabled: true,
+      profileDirectory,
+      dshVersion: "test",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Hooks are registered so the settings page can turn the toggle on later,
+    // but until the durable setting enables them they stay inert.
+    expect(admission.registered).toBe(1);
+    expect(admission.taskClaimRegistered).toBe(1);
+    expect(systemPrompt.sections).toContain("adaptive-orchestrator");
+    const lease = await admission.handler!(
+      { provider: "codex" },
+      new AbortController().signal,
+    );
+    await (lease as { release(): Promise<void> }).release();
+    const prepared = await admission.taskClaimHandler!.prepare(
+      { teamId: "t", taskId: "k", attemptId: "a", ownerId: "o" },
+      new AbortController().signal,
+    );
+    await (prepared as { rollback(): Promise<void> }).rollback();
   });
 
   it("registers seams and enforces the captain decision path when enabled", async () => {

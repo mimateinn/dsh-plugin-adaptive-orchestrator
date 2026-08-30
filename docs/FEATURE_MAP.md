@@ -11,7 +11,8 @@
 | Host composition | src/host/ | CompatibilityReport, SettingsService, captain tool guard and guidance, scheduler admission bridges | src/index.ts apply(); DSH system-prompt and tools/pre-execute seams |
 | Usage adapter | src/integrations/ | UsageSource with redacted drop of invalid QuotaSnapshot; NeutralUsageSource when the usage RPC is absent | Routing core and host wiring |
 | Delegation governor | src/scheduler/ | SchedulerState, QueueRecord, Lease, DispatchFence | Future DSH subagent and AgentTeams admission adapters |
-| Settings client | src/client/ (planned) | Typed settings/status RPC | DSH Settings UI |
+| Settings client | src/client/ | settings.section slot page (global toggle + sensitive allowlist) bound to the adaptive-orchestrator namespace | DSH Settings shell via ctx.settingsScope and ctx.slots |
+| Host settings namespace | src/index.ts | Registers the adaptive-orchestrator settings namespace (schemastery) and watches it to drive runtime enablement | DSH Settings service (ctx.settings), Settings page |
 | New-model evaluator | src/evaluation/ | ModelEvaluation and EvaluationOutcome | Model registry and future probe adapter |
 | Privacy-safe audit | src/audit/ | AuditEvent, integrity envelope, salted route hash | Host status/RPC and persistent storage adapter |
 | Profile-local persistence | src/persistence/ | Durable cross-process atomic SettingsRepository and identity-keyed EvaluationStore; canonical mkdir locks never steal ambiguous ownership | Host settings and evaluation services; validates through contracts/evaluation parsers |

@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import type { Context } from "@deepseek-ai/cordis";
 import type { PreToolDecision, ToolExecution } from "@deepseek-ai/dsh-tools";
 import type { PromptSection } from "@deepseek-ai/dsh-system-prompt";
+import z from "@deepseek-ai/schemastery";
 import { FileSettingsRepository } from "./persistence/index.js";
 import { SettingsService, defaultSettings } from "./host/settings.js";
 import {
@@ -122,35 +123,85 @@ function buildSchedulerGateway(): SchedulerGateway {
   };
 }
 
+/** Structural host settings service face (dsh-settings). */
+interface SettingsServiceLike {
+  register(
+    namespace: string,
+    schema: unknown,
+    options?: { base?: object; applies?: "live" | "restart" },
+  ): {
+    get(): { enabled?: boolean };
+    watch(cb: (next: { enabled?: boolean }) => void): () => void;
+  };
+}
+
+/** Settings-page schema: the global toggle and the sensitive allowlist. */
+const adaptiveSettingsSchema = z.object({
+  enabled: z.boolean(),
+  sensitive: z.object({
+    enabled: z.boolean(),
+    modelAllowlist: z.array(z.string()),
+  }),
+});
+
 export function apply(ctx: Context, config: Config = {}): void {
   const profileDirectory =
     config.profileDirectory ?? join(homedir(), ".dsh-adaptive-orchestrator");
-  const settings = new SettingsService(
-    new FileSettingsRepository(profileDirectory),
-  );
-  const configEnabled = config.enabled ?? false;
-  if (!configEnabled) return;
-
   const roleProven = { current: false };
-  const report = compatibilityReport(
-    { capabilities: () => hostCapabilities(ctx, roleProven) },
-    config.dshVersion ?? "unknown",
-  );
-  // The role seam is proven at runtime; the static gate covers the admission seams.
-  const staticFailures = report.failures.filter(
-    (failure) => failure.code !== "AGENT_ROLE",
-  );
-  if (staticFailures.length > 0) {
-    ctx.logger.warn(
-      `adaptive orchestrator unavailable: ${staticFailures.map((failure) => failure.code).join(", ")}`,
-    );
-    return;
-  }
 
   ctx.effect(() => {
     const disposers: Array<() => void> = [];
     const runtime = { active: false, roleProven: false };
     roleProven.current = runtime.roleProven;
+
+    // Durable toggle source: the original DSH Settings namespace when the host
+    // exposes settings, else the profile-local file repository.
+    const settingsService = ctx.get("settings") as
+      SettingsServiceLike | undefined;
+    if (settingsService?.register !== undefined) {
+      const scope = settingsService.register(
+        "adaptive-orchestrator",
+        adaptiveSettingsSchema,
+        { applies: "live" },
+      );
+      runtime.active = scope.get()?.enabled === true;
+      disposers.push(
+        scope.watch((next) => {
+          runtime.active = next?.enabled === true;
+        }),
+      );
+    } else {
+      const settings = new SettingsService(
+        new FileSettingsRepository(profileDirectory),
+      );
+      void settings
+        .read()
+        .then((stored) => {
+          runtime.active = (stored ?? defaultSettings()).enabled;
+        })
+        .catch(() => {
+          runtime.active = false;
+        });
+    }
+
+    // Enforcement hooks only register when the admission seams are present;
+    // they stay inert until the durable toggle turns active.
+    const report = compatibilityReport(
+      { capabilities: () => hostCapabilities(ctx, roleProven) },
+      config.dshVersion ?? "unknown",
+    );
+    const staticFailures = report.failures.filter(
+      (failure) => failure.code !== "AGENT_ROLE",
+    );
+    if (staticFailures.length > 0) {
+      ctx.logger.warn(
+        `adaptive orchestrator unavailable: ${staticFailures.map((failure) => failure.code).join(", ")}`,
+      );
+      return () => {
+        for (const dispose of disposers) dispose();
+      };
+    }
+
     const allowlist = new OrchestrationAllowlist(BUILTIN_CAPTAIN_TOOLS);
     const gateway = buildSchedulerGateway();
 
@@ -240,19 +291,11 @@ export function apply(ctx: Context, config: Config = {}): void {
       );
     }
 
-    void settings
-      .read()
-      .then((stored) => {
-        runtime.active = (stored ?? defaultSettings()).enabled;
-        if (runtime.active && !runtime.roleProven) {
-          ctx.logger.info(
-            "adaptive orchestrator enabled; awaiting the first observed delegation role",
-          );
-        }
-      })
-      .catch(() => {
-        runtime.active = false;
-      });
+    if (runtime.active && !runtime.roleProven) {
+      ctx.logger.info(
+        "adaptive orchestrator enabled; awaiting the first observed delegation role",
+      );
+    }
 
     return () => {
       for (const dispose of disposers) dispose();

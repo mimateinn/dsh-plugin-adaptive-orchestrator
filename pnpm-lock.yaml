@@ -13,12 +13,18 @@ importers:
       "@deepseek-ai/dsh-client-connection":
         specifier: ^0.1.2-alpha.2
         version: 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))
+      "@deepseek-ai/dsh-client-store":
+        specifier: ^0.1.2-alpha.2
+        version: 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@types/react@18.3.31)(react@18.3.1)
       "@deepseek-ai/dsh-client-ui-settings":
         specifier: ^0.1.2-alpha.2
         version: 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)
       "@deepseek-ai/dsh-client-ui-slots":
         specifier: ^0.1.2-alpha.2
         version: 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)
+      "@deepseek-ai/dsh-settings":
+        specifier: ^0.1.2-alpha.2
+        version: 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-brand@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)))(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/schemastery@3.18.2)
       "@deepseek-ai/dsh-subagent":
         specifier: ^0.1.2-alpha.2
         version: 0.1.2-alpha.2(4506678285a015ebed6e5b9e4fe7eec0)
@@ -28,6 +34,9 @@ importers:
       "@deepseek-ai/dsh-tools":
         specifier: ^0.1.2-alpha.2
         version: 0.1.2-alpha.2(1121451e7f334db134f1e0d3fbe914bd)
+      "@deepseek-ai/schemastery":
+        specifier: ^3.18.2
+        version: 3.18.2
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -118,6 +127,14 @@ packages:
     peerDependencies:
       "@deepseek-ai/cordis": ^4.0.2
 
+  "@deepseek-ai/dsh-client-store@0.1.2-alpha.2":
+    resolution:
+      {
+        integrity: sha512-tz94GO4b8m3PPe/knfNjHa/VeTJTDNgN1eZeQWHjb5kKxCCThlNk91y5z/kEC93oGVd0lphq5pG5aQCQr2364g==,
+      }
+    peerDependencies:
+      "@deepseek-ai/cordis": ^4.0.2
+
   "@deepseek-ai/dsh-client-ui-settings@0.1.2-alpha.2":
     resolution:
       {
@@ -195,6 +212,18 @@ packages:
     peerDependencies:
       "@deepseek-ai/cordis": ^4.0.2
       "@deepseek-ai/dsh-scope": ^0.1.2-alpha.2
+
+  "@deepseek-ai/dsh-settings@0.1.2-alpha.2":
+    resolution:
+      {
+        integrity: sha512-rWPH/LfDU9SCFaonqfxCMjnD4gkO31DlQVHL9LIy7wH/FVqnBJ6v13YN70Fpof2KKPyL2YhcwOOPQbusxlzSDw==,
+      }
+    peerDependencies:
+      "@deepseek-ai/cordis": ^4.0.2
+      "@deepseek-ai/dsh-brand": ^0.1.2-alpha.2
+      "@deepseek-ai/dsh-invariants": ^0.1.2-alpha.2
+      "@deepseek-ai/dsh-session": ^0.1.2-alpha.2
+      "@deepseek-ai/schemastery": ^3.18.2
 
   "@deepseek-ai/dsh-subagent@0.1.2-alpha.2":
     resolution:
@@ -1105,6 +1134,12 @@ packages:
         integrity: sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ==,
       }
 
+  immer@10.2.0:
+    resolution:
+      {
+        integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==,
+      }
+
   import-without-cache@0.4.0:
     resolution:
       {
@@ -1471,6 +1506,14 @@ packages:
         integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==,
       }
 
+  use-sync-external-store@1.2.0:
+    resolution:
+      {
+        integrity: sha512-eEgnFxGQ1Ife9bzYs6VLi8/4X6CObHMw9Qr9tPY43iKwsPw8xE8+EFsf/2cFZ5S3esXgpWgtSCtLNS41F+sKPA==,
+      }
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0
+
   verkit@0.3.2:
     resolution:
       {
@@ -1600,6 +1643,24 @@ packages:
         integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==,
       }
 
+  zustand@4.4.7:
+    resolution:
+      {
+        integrity: sha512-QFJWJMdlETcI69paJwhSMJz7PPWjVP8Sjhclxmxmxv/RYI7ZOvR5BHX+ktH0we9gTWQMxcne8q1OY8xxz604gw==,
+      }
+    engines: { node: ">=12.7.0" }
+    peerDependencies:
+      "@types/react": ">=16.8"
+      immer: ">=9.0"
+      react: ">=16.8"
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+
 snapshots:
   "@deepseek-ai/cordis@4.0.2":
     dependencies:
@@ -1638,6 +1699,15 @@ snapshots:
       zod: 4.5.4
     transitivePeerDependencies:
       - "@deepseek-ai/dsh-invariants"
+
+  "@deepseek-ai/dsh-client-store@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@types/react@18.3.31)(react@18.3.1)":
+    dependencies:
+      "@deepseek-ai/cordis": 4.0.2
+      immer: 10.2.0
+      zustand: 4.4.7(@types/react@18.3.31)(immer@10.2.0)(react@18.3.1)
+    transitivePeerDependencies:
+      - "@types/react"
+      - react
 
   "@deepseek-ai/dsh-client-ui-settings@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)":
     dependencies:
@@ -1697,6 +1767,15 @@ snapshots:
       "@deepseek-ai/dsh-util-values": 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))
     transitivePeerDependencies:
       - "@deepseek-ai/dsh-invariants"
+
+  "@deepseek-ai/dsh-settings@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-brand@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)))(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-session@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/schemastery@3.18.2)":
+    dependencies:
+      "@deepseek-ai/cordis": 4.0.2
+      "@deepseek-ai/dsh-brand": 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))
+      "@deepseek-ai/dsh-invariants": 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)
+      "@deepseek-ai/dsh-session": 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)))
+      "@deepseek-ai/dsh-util-values": 0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.2-alpha.2(@deepseek-ai/cordis@4.0.2))
+      "@deepseek-ai/schemastery": 3.18.2
 
   "@deepseek-ai/dsh-subagent@0.1.2-alpha.2(4506678285a015ebed6e5b9e4fe7eec0)":
     dependencies:
@@ -2073,6 +2152,8 @@ snapshots:
 
   hookable@6.1.1: {}
 
+  immer@10.2.0: {}
+
   import-without-cache@0.4.0: {}
 
   js-tokens@4.0.0: {}
@@ -2272,6 +2353,10 @@ snapshots:
 
   undici-types@7.18.2: {}
 
+  use-sync-external-store@1.2.0(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+
   verkit@0.3.2: {}
 
   vite@8.2.2(@types/node@24.13.3):
@@ -2357,3 +2442,11 @@ snapshots:
       "@yuku-parser/binding-win32-x64": 0.8.7
 
   zod@4.5.4: {}
+
+  zustand@4.4.7(@types/react@18.3.31)(immer@10.2.0)(react@18.3.1):
+    dependencies:
+      use-sync-external-store: 1.2.0(react@18.3.1)
+    optionalDependencies:
+      "@types/react": 18.3.31
+      immer: 10.2.0
+      react: 18.3.1
