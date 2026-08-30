@@ -22,3 +22,8 @@
 - **Why:** maximizes ordinary throughput while preserving an explicit privacy boundary when requested.
 - **Rejected:** always fixed provider per project, because the user requested cross-company routing by default.
 - **Impact:** complete-model allowlist and visible route records are required.
+
+## 2026-08-31 — Pure policy core before host adapters
+- **Why:** routing, scheduling, evaluation, and audit behavior can be deterministic and independently verified while generic DSH admission hooks mature.
+- **Rejected:** implement policy directly in DSH lifecycle callbacks, because it would couple algorithms to host APIs and make fault tests nondeterministic.
+- **Impact:** src/contracts, src/core, src/scheduler, src/evaluation, and src/audit have no DSH runtime imports; host adapters will depend on them, never the reverse.
