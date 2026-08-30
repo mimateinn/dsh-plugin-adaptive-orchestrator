@@ -1,3 +1,4 @@
+import { canonicalJson, canonicalSha256 } from "../contracts/index.js";
 export type AuditReasonCode =
   | "EVALUATION_QUALIFIED"
   | "PROBES_INCOMPLETE"
@@ -6,126 +7,175 @@ export type AuditReasonCode =
   | "SAFETY_VIOLATION"
   | "AUDIT_STORE_CORRUPTED";
 export interface AuditEvent {
-  at: number;
+  eventId: string;
+  timestamp: string;
   kind: "route" | "evaluation" | "scheduler" | "diagnostic";
   reasonCodes: AuditReasonCode[];
   routeHash: string;
+  normalizedMetrics: Record<string, number>;
 }
+interface AuditEnvelope {
+  schemaVersion: 1;
+  records: readonly AuditEvent[];
+  checksum: string;
+}
+const MAX_BYTES = 16 * 1024,
+  MAX_RECORDS = 10_000,
+  DAY = 86_400_000;
 const codes = new Set<AuditReasonCode>([
-  "EVALUATION_QUALIFIED",
-  "PROBES_INCOMPLETE",
-  "MANDATORY_TOOL_FAILED",
-  "SUCCESS_THRESHOLD_FAILED",
-  "SAFETY_VIOLATION",
-  "AUDIT_STORE_CORRUPTED",
-]);
-const allowed = new Set(["at", "kind", "reasonCodes", "routeId", "salt"]);
-
-function sha256(value: string): string {
-  const bytes = new TextEncoder().encode(value),
-    bitLength = bytes.length * 8;
-  const paddedLength = ((bytes.length + 9 + 63) >> 6) << 6,
-    message = new Uint8Array(paddedLength);
-  message.set(bytes);
-  message[bytes.length] = 0x80;
-  const view = new DataView(message.buffer);
-  view.setUint32(paddedLength - 4, bitLength);
-  const h = new Uint32Array([
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c,
-    0x1f83d9ab, 0x5be0cd19,
-  ]);
-  const k = new Uint32Array([
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-  ]);
-  const rotate = (x: number, n: number) => (x >>> n) | (x << (32 - n)),
-    w = new Uint32Array(64);
-  for (let offset = 0; offset < paddedLength; offset += 64) {
-    for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4);
-    for (let i = 16; i < 64; i++) {
-      const a = w[i - 15]!,
-        b = w[i - 2]!;
-      w[i] =
-        (w[i - 16]! +
-          (rotate(a, 7) ^ rotate(a, 18) ^ (a >>> 3)) +
-          w[i - 7]! +
-          (rotate(b, 17) ^ rotate(b, 19) ^ (b >>> 10))) >>>
-        0;
-    }
-    let [a, b, c, d, e, f, g, q] = h;
-    for (let i = 0; i < 64; i++) {
-      const s1 = rotate(e!, 6) ^ rotate(e!, 11) ^ rotate(e!, 25),
-        choice = (e! & f!) ^ (~e! & g!),
-        t1 = (q! + s1 + choice + k[i]! + w[i]!) >>> 0,
-        s0 = rotate(a!, 2) ^ rotate(a!, 13) ^ rotate(a!, 22),
-        majority = (a! & b!) ^ (a! & c!) ^ (b! & c!),
-        t2 = (s0 + majority) >>> 0;
-      q = g;
-      g = f;
-      f = e;
-      e = (d! + t1) >>> 0;
-      d = c;
-      c = b;
-      b = a;
-      a = (t1 + t2) >>> 0;
-    }
-    [a, b, c, d, e, f, g, q].forEach((x, i) => {
-      h[i] = (h[i]! + x!) >>> 0;
-    });
-  }
-  return [...h].map((x) => x.toString(16).padStart(8, "0")).join("");
+    "EVALUATION_QUALIFIED",
+    "PROBES_INCOMPLETE",
+    "MANDATORY_TOOL_FAILED",
+    "SUCCESS_THRESHOLD_FAILED",
+    "SAFETY_VIOLATION",
+    "AUDIT_STORE_CORRUPTED",
+  ]),
+  kinds = new Set(["route", "evaluation", "scheduler", "diagnostic"]);
+const object = (x: unknown): x is Record<string, unknown> =>
+  typeof x === "object" && x !== null && !Array.isArray(x);
+const string = (x: unknown) =>
+  typeof x === "string" && x.length > 0 && x.length <= 200 && x.trim() === x;
+function validEvent(x: unknown): x is AuditEvent {
+  if (
+    !object(x) ||
+    Object.keys(x).some(
+      (k) =>
+        ![
+          "eventId",
+          "timestamp",
+          "kind",
+          "reasonCodes",
+          "routeHash",
+          "normalizedMetrics",
+        ].includes(k),
+    )
+  )
+    return false;
+  if (
+    !string(x.eventId) ||
+    typeof x.timestamp !== "string" ||
+    !Number.isFinite(Date.parse(x.timestamp)) ||
+    !kinds.has(x.kind as string) ||
+    !Array.isArray(x.reasonCodes) ||
+    x.reasonCodes.length > 32 ||
+    !x.reasonCodes.every((c) => codes.has(c as AuditReasonCode)) ||
+    typeof x.routeHash !== "string" ||
+    !/^[a-f0-9]{64}$/.test(x.routeHash) ||
+    !object(x.normalizedMetrics)
+  )
+    return false;
+  return (
+    Object.keys(x.normalizedMetrics).length <= 32 &&
+    Object.entries(x.normalizedMetrics).every(
+      ([k, v]) =>
+        string(k) &&
+        typeof v === "number" &&
+        Number.isFinite(v) &&
+        v >= 0 &&
+        v <= 1,
+    )
+  );
 }
-
 export function createAuditEvent(input: {
-  at: number;
+  eventId?: string;
+  timestamp?: string;
+  at?: number;
   kind: AuditEvent["kind"];
   reasonCodes: string[];
   routeId: string;
   salt: string;
+  normalizedMetrics?: Record<string, number>;
 }): AuditEvent {
-  for (const key of Object.keys(input))
-    if (!allowed.has(key)) throw new Error("Prohibited audit field");
-  if (!input.reasonCodes.every((x) => codes.has(x as AuditReasonCode)))
-    throw new Error("Unnormalized reason code");
-  return {
-    at: input.at,
+  const allowed = new Set([
+    "eventId",
+    "timestamp",
+    "at",
+    "kind",
+    "reasonCodes",
+    "routeId",
+    "salt",
+    "normalizedMetrics",
+  ]);
+  if (Object.keys(input).some((k) => !allowed.has(k)))
+    throw new Error("Prohibited audit field");
+  const timestamp =
+    input.timestamp ??
+    (Number.isFinite(input.at) ? new Date(input.at!).toISOString() : undefined);
+  const event = {
+    eventId:
+      input.eventId ??
+      canonicalSha256({
+        timestamp,
+        kind: input.kind,
+        reasonCodes: input.reasonCodes,
+        routeId: input.routeId,
+      }).slice(0, 32),
+    timestamp,
     kind: input.kind,
     reasonCodes: input.reasonCodes as AuditReasonCode[],
-    routeHash: sha256(input.salt + "\0" + input.routeId),
+    routeHash: canonicalSha256(input.salt + "\0" + input.routeId),
+    normalizedMetrics: input.normalizedMetrics ?? {},
   };
+  if (
+    !validEvent(event) ||
+    new TextEncoder().encode(canonicalJson(event)).length > MAX_BYTES
+  )
+    throw new Error("Invalid audit event");
+  return event;
 }
 export function appendAudit(
   records: readonly AuditEvent[],
   event: AuditEvent,
   now: number,
 ): AuditEvent[] {
+  if (!validEvent(event)) throw new Error("Invalid audit event");
   return [...records, event]
-    .filter((x) => now - x.at <= 7 * 86_400_000)
-    .slice(-10_000);
+    .filter((x) => now - Date.parse(x.timestamp) <= 7 * DAY)
+    .slice(-MAX_RECORDS);
+}
+export function encodeAuditStore(records: readonly AuditEvent[]): string {
+  if (records.length > MAX_RECORDS || !records.every(validEvent))
+    throw new Error("Invalid audit store");
+  const payload = { schemaVersion: 1 as const, records };
+  const envelope: AuditEnvelope = {
+    ...payload,
+    checksum: canonicalSha256(payload),
+  };
+  const raw = canonicalJson(envelope);
+  if (new TextEncoder().encode(raw).length > MAX_RECORDS * MAX_BYTES)
+    throw new Error("Audit store too large");
+  return raw;
 }
 export function parseAuditStore(raw: string): {
   records: AuditEvent[];
   corrupted: boolean;
+  degraded: boolean;
   action: "none" | "rotate";
 } {
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) throw new Error();
+    if (new TextEncoder().encode(raw).length > MAX_RECORDS * MAX_BYTES)
+      throw new Error();
+    const x: unknown = JSON.parse(raw);
+    if (
+      !object(x) ||
+      Object.keys(x).some(
+        (k) => !["schemaVersion", "records", "checksum"].includes(k),
+      ) ||
+      x.schemaVersion !== 1 ||
+      !Array.isArray(x.records) ||
+      x.records.length > MAX_RECORDS ||
+      !x.records.every(validEvent) ||
+      typeof x.checksum !== "string" ||
+      x.checksum !== canonicalSha256({ schemaVersion: 1, records: x.records })
+    )
+      throw new Error();
     return {
-      records: parsed as AuditEvent[],
+      records: x.records,
       corrupted: false,
+      degraded: false,
       action: "none",
     };
   } catch {
-    return { records: [], corrupted: true, action: "rotate" };
+    return { records: [], corrupted: true, degraded: true, action: "rotate" };
   }
 }

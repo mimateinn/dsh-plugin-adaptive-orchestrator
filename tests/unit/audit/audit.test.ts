@@ -2,23 +2,95 @@ import { describe, expect, it } from "vitest";
 import {
   appendAudit,
   createAuditEvent,
+  encodeAuditStore,
   parseAuditStore,
 } from "../../../src/audit/index.js";
-
+const event = (i = 0) =>
+  createAuditEvent({
+    eventId: `e${i}`,
+    timestamp: new Date(i).toISOString(),
+    kind: "route",
+    reasonCodes: [],
+    routeId: `r${i}`,
+    salt: "s",
+    normalizedMetrics: { pressure: 0.5 },
+  });
 describe("privacy-safe audit", () => {
-  it("stores only normalized reason codes and salted route hashes", () => {
-    const e = createAuditEvent({
-      at: 1,
-      kind: "route",
-      reasonCodes: ["EVALUATION_QUALIFIED"],
-      routeId: "account:model",
-      salt: "secret",
-    });
+  it("creates exact closed-schema privacy-safe events", () => {
+    const e = event();
     expect(e.routeHash).toMatch(/^[a-f0-9]{64}$/);
-    expect(JSON.stringify(e)).not.toContain("account:model");
+    expect(JSON.stringify(e)).not.toContain("r0");
     expect(() =>
       createAuditEvent({
-        at: 1,
+        eventId: "e",
+        timestamp: new Date(0).toISOString(),
+        kind: "route",
+        reasonCodes: [],
+        routeId: "r",
+        salt: "s",
+        prompt: "secret",
+      } as never),
+    ).toThrow();
+    expect(() =>
+      createAuditEvent({
+        eventId: "e",
+        timestamp: new Date(0).toISOString(),
+        kind: "route",
+        reasonCodes: [],
+        routeId: "r",
+        salt: "s",
+        normalizedMetrics: { pressure: 2 },
+      }),
+    ).toThrow();
+  });
+  it("round trips a bounded checksummed envelope", () => {
+    const raw = encodeAuditStore([event()]);
+    expect(parseAuditStore(raw)).toEqual({
+      records: [event()],
+      corrupted: false,
+      degraded: false,
+      action: "none",
+    });
+  });
+  it("rotates and degrades on checksum, schema, event, and size corruption", () => {
+    const raw = encodeAuditStore([event()]);
+    for (const bad of [
+      "{bad",
+      raw.replace(
+        /"checksum":"[a-f0-9]+"/,
+        '"checksum":"0000000000000000000000000000000000000000000000000000000000000000"',
+      ),
+      JSON.stringify({
+        schemaVersion: 1,
+        records: [{ prompt: "secret" }],
+        checksum: "x",
+      }),
+      "x".repeat(10_000 * 16 * 1024 + 1),
+    ])
+      expect(parseAuditStore(bad)).toMatchObject({
+        records: [],
+        corrupted: true,
+        degraded: true,
+        action: "rotate",
+      });
+  });
+  it("rejects canonical-envelope tampering and unknown event fields", () => {
+    const parsed = JSON.parse(encodeAuditStore([event()])) as Record<
+      string,
+      unknown
+    >;
+    const records = parsed.records as Array<Record<string, unknown>>;
+    records[0] = { ...records[0], prompt: "secret" };
+    expect(parseAuditStore(JSON.stringify(parsed))).toMatchObject({
+      records: [],
+      corrupted: true,
+      degraded: true,
+      action: "rotate",
+    });
+    expect(() =>
+      createAuditEvent({
+        eventId: "e",
+        timestamp: new Date(0).toISOString(),
         kind: "route",
         reasonCodes: ["free text"],
         routeId: "r",
@@ -26,50 +98,25 @@ describe("privacy-safe audit", () => {
       }),
     ).toThrow();
   });
-  it("rejects prohibited raw fields", () =>
-    expect(() =>
-      createAuditEvent({
-        at: 1,
-        kind: "route",
-        reasonCodes: [],
-        routeId: "r",
-        salt: "s",
-        prompt: "secret",
-      } as never),
-    ).toThrow());
-  it("retains the smaller of seven days and 10000 records", () => {
-    let xs = [] as ReturnType<typeof createAuditEvent>[];
-    for (let i = 0; i < 10_005; i++)
-      xs = appendAudit(
-        xs,
-        createAuditEvent({
-          at: i,
-          kind: "route",
-          reasonCodes: [],
-          routeId: String(i),
-          salt: "s",
-        }),
-        10_005,
-      );
-    expect(xs).toHaveLength(10_000);
+  it("uses the salt as part of the route pseudonym", () => {
+    const first = event();
+    const second = createAuditEvent({
+      eventId: "e2",
+      timestamp: new Date(0).toISOString(),
+      kind: "route",
+      reasonCodes: [],
+      routeId: "r0",
+      salt: "other",
+    });
+    expect(second.routeHash).not.toBe(first.routeHash);
+  });
+  it("retains seven days or ten thousand records", () => {
+    const xs = Array.from({ length: 10_005 }, (_, i) => event(i));
+    expect(appendAudit(xs.slice(0, -1), xs.at(-1)!, 10_005)).toHaveLength(
+      10_000,
+    );
     expect(
-      appendAudit(
-        xs,
-        createAuditEvent({
-          at: 8 * 86_400_000,
-          kind: "route",
-          reasonCodes: [],
-          routeId: "x",
-          salt: "s",
-        }),
-        8 * 86_400_000,
-      ),
+      appendAudit(xs.slice(-10_000), event(8 * 86_400_000), 8 * 86_400_000),
     ).toHaveLength(1);
   });
-  it("handles corruption deterministically without throwing", () =>
-    expect(parseAuditStore("{bad")).toEqual({
-      records: [],
-      corrupted: true,
-      action: "rotate",
-    }));
 });

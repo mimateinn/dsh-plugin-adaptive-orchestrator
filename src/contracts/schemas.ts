@@ -222,28 +222,117 @@ export function validateRouteRequirements(value: unknown) {
     };
   }
 }
+export interface QuotaWindow {
+  quotaClass: string;
+  usedPercent?: number;
+  resetsAt?: string;
+}
+export interface QuotaSnapshot {
+  schemaVersion: 1;
+  provider: string;
+  account: string;
+  quotaClass: string;
+  supported: boolean;
+  observedAt: string;
+  source: string;
+  confidence: "high" | "medium" | "low";
+  model?: string;
+  plan?: string;
+  usedPercent?: number;
+  resetsAt?: string;
+  windows?: QuotaWindow[];
+}
+const quotaString = (value: unknown) =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= 200 &&
+  value.trim() === value;
+const rfc3339 = (value: unknown) =>
+  typeof value === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value) &&
+  Number.isFinite(Date.parse(value));
+const percent = (value: unknown) =>
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  value >= 0 &&
+  value <= 100;
 export function validateQuotaSnapshot(value: unknown) {
   const errors: ValidationIssue[] = [];
   if (!object(value)) errors.push(issue("/", "Expected object"));
   else {
-    if (
-      typeof value.observedAt !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(value.observedAt) ||
-      !Number.isFinite(Date.parse(value.observedAt))
-    )
+    const allowed = new Set([
+      "schemaVersion",
+      "provider",
+      "account",
+      "quotaClass",
+      "supported",
+      "observedAt",
+      "source",
+      "confidence",
+      "model",
+      "plan",
+      "usedPercent",
+      "resetsAt",
+      "windows",
+    ]);
+    for (const key of Object.keys(value))
+      if (!allowed.has(key))
+        errors.push(issue(`/${key}`, "Unknown property", "unknown_key"));
+    if (value.schemaVersion !== 1)
+      errors.push(issue("/schemaVersion", "schemaVersion must equal 1"));
+    for (const key of ["provider", "account", "quotaClass", "source"])
+      if (!quotaString(value[key]))
+        errors.push(issue(`/${key}`, "Expected trimmed string"));
+    for (const key of ["model", "plan"])
+      if (value[key] !== undefined && !quotaString(value[key]))
+        errors.push(issue(`/${key}`, "Expected trimmed string"));
+    if (typeof value.supported !== "boolean")
+      errors.push(issue("/supported", "Expected boolean"));
+    if (!rfc3339(value.observedAt))
       errors.push(issue("/observedAt", "Expected RFC3339 UTC timestamp"));
-    for (const k of ["provider", "account", "quotaClass", "source"])
-      if (
-        typeof value[k] !== "string" ||
-        value[k].trim() !== value[k] ||
-        value[k].length < 1 ||
-        value[k].length > 200
-      )
-        errors.push(issue(`/${k}`, "Expected trimmed string"));
+    if (!(["high", "medium", "low"] as unknown[]).includes(value.confidence))
+      errors.push(issue("/confidence", "Expected high, medium, or low"));
+    if (value.usedPercent !== undefined && !percent(value.usedPercent))
+      errors.push(issue("/usedPercent", "Expected finite percentage 0..100"));
+    if (value.resetsAt !== undefined && !rfc3339(value.resetsAt))
+      errors.push(issue("/resetsAt", "Expected RFC3339 UTC timestamp"));
+    if (value.windows !== undefined) {
+      if (!Array.isArray(value.windows) || value.windows.length > 32)
+        errors.push(issue("/windows", "Expected at most 32 windows"));
+      else
+        value.windows.forEach((window, index) => {
+          const path = `/windows/${index}`;
+          if (!object(window))
+            return errors.push(issue(path, "Expected object"));
+          const windowAllowed = new Set([
+            "quotaClass",
+            "usedPercent",
+            "resetsAt",
+          ]);
+          for (const key of Object.keys(window))
+            if (!windowAllowed.has(key))
+              errors.push(
+                issue(`${path}/${key}`, "Unknown property", "unknown_key"),
+              );
+          if (!quotaString(window.quotaClass))
+            errors.push(issue(`${path}/quotaClass`, "Expected trimmed string"));
+          if (window.usedPercent !== undefined && !percent(window.usedPercent))
+            errors.push(
+              issue(`${path}/usedPercent`, "Expected finite percentage 0..100"),
+            );
+          if (window.resetsAt !== undefined && !rfc3339(window.resetsAt))
+            errors.push(
+              issue(`${path}/resetsAt`, "Expected RFC3339 UTC timestamp"),
+            );
+        });
+    }
   }
   return errors.length
     ? { success: false as const, errors }
-    : { success: true as const, data: value };
+    : { success: true as const, data: value as QuotaSnapshot };
+}
+export function validateQuotaSnapshots(values: readonly unknown[]) {
+  return values.map(validateQuotaSnapshot);
 }
 export function parseRouteRequirements(v: unknown): RouteRequirements {
   if (!object(v))
