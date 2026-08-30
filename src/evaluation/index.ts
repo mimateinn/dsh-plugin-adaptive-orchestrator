@@ -237,8 +237,10 @@ export function transitionOutcome(
   input: EvaluationOutcome | LegacyEvaluationOutcome,
   now = Date.now(),
 ): ModelEvaluation {
-  const state = parseModelEvaluation(rawState),
-    outcome = normalizeOutcome(state, input);
+  const state = parseModelEvaluation(rawState);
+  if (state.revision >= Number.MAX_SAFE_INTEGER)
+    throw new Error("Evaluation revision exhausted");
+  const outcome = normalizeOutcome(state, input);
   if (
     !validOutcome(state, outcome) ||
     Date.parse(outcome.finishedAt) > now ||

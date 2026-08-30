@@ -1,3 +1,5 @@
+export * from "./persistence/index.js";
+
 export const name = "adaptive-orchestrator";
 
 export interface Config {

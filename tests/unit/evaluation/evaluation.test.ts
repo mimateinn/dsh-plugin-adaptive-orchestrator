@@ -93,6 +93,20 @@ describe("model evaluation", () => {
       recentProbeIds: [],
     });
   });
+  it("rejects revision exhaustion before store delegation", async () => {
+    const exhausted = { ...fresh(), revision: Number.MAX_SAFE_INTEGER };
+    let calls = 0;
+    const store: EvaluationStore = {
+      async compareAndSwap() {
+        calls++;
+        return { success: true, value: exhausted };
+      },
+    };
+    await expect(
+      recordOutcome(store, exhausted, outcome(0), exhausted.revision, now + 20),
+    ).rejects.toThrow("revision exhausted");
+    expect(calls).toBe(0);
+  });
   it("rejects replay and malformed outcomes", () => {
     const s = fresh(),
       once = transitionOutcome(s, outcome(0), now + 20);
