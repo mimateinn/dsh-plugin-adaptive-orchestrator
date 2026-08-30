@@ -3,8 +3,8 @@
 # Handoff
 
 ## In progress
-- The design specification passed independent blocker-only review at blob 6a21dd9a7ef8164025fe0c0ad57645177296965a; 13c1414 is its earlier deterministic-contract base commit.
-- Implementation has not started because the user must explicitly approve the written specification.
+- The user explicitly approved the specification and central-node icon direction on 2026-08-30.
+- Implementation planning is in progress; code implementation has not started.
 
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
@@ -14,8 +14,8 @@
 - Icon concept is outside Git at ..\02 Assets\ai-gen\icon-central-node-concept-v01.png and awaits user approval.
 
 ## Checklist
-- [ ] User explicitly approves the written design specification.
-- [ ] User approves the icon concept; create SVG and exports.
+- [x] User explicitly approved the written design specification.
+- [x] User approved the icon concept; SVG and 16/32/48/128/256 PNG exports exist under assets/icon.
 - [ ] Create implementation plan.
 - [ ] Scaffold one-command quality gate and characterization tests.
 - [ ] Implement plugin core and UI.
@@ -45,6 +45,8 @@
 | docs/PREFERENCES.md | Every session | Persistent product and language choices |
 | HANDOFF.md | Every session | Live progress and hazards |
 | docs/PROJECT_GOALS.md | Before selecting work | Outcomes and priority |
+| docs/FEEDBACK.md | Every session, pending section | User acceptance and feedback |
+| docs/PATTERNS.md | Before GUI/visual work | UI and icon consistency rules |
 | docs/FEATURE_MAP.md | Before architecture changes | Module/contract relationships |
 | docs/DECISIONS.md | Before architecture changes | Decisions and rejected alternatives |
 | docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md | Before implementation | Approved acceptance contract |

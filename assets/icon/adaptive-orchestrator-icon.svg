@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Adaptive Orchestrator</title>
+  <desc id="desc">A fixed central captain routes work to three worker nodes inside a quota gauge.</desc>
+  <defs>
+    <linearGradient id="route" x1="48" y1="208" x2="208" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16C7E8"/><stop offset="1" stop-color="#1769FF"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#route)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 102V67"/>
+    <path d="M99 151L72 177H45"/>
+    <path d="M157 151L184 177H211"/>
+    <path d="M41 155A94 94 0 0 1 48 82" opacity=".82"/>
+    <path d="M60 60A94 94 0 0 1 111 36" opacity=".9"/>
+    <path d="M133 34A94 94 0 0 1 220 157"/>
+  </g>
+  <g fill="#fff" stroke="url(#route)" stroke-width="12">
+    <circle cx="128" cy="47" r="14"/>
+    <circle cx="31" cy="177" r="14"/>
+    <circle cx="225" cy="177" r="14"/>
+  </g>
+  <path d="M128 90L169 114V162L128 186L87 162V114Z" fill="#252A34" stroke="#11151C" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="128" cy="138" r="8" fill="#16C7E8"/>
+</svg>
