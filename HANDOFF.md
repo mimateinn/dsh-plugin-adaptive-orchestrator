@@ -3,21 +3,20 @@
 # Handoff
 
 ## In progress
-**Task:** Complete generic DSH enforcement hooks, then integrate the verified plugin host/settings layers.
-**Completed so far:** Package scaffold and pure contracts/routing/health/scheduler/evaluation/audit are pushed at plugin commit 3c77f945; pnpm check passes 50/50 tests plus format, lint, typecheck, and build. Official DSH commit 54ee6b6f6 adds verified one-shot and continuable DelegationAdmission leases (156 focused tests + package typecheck pass).
+**Task:** Finish the generic DSH role and AgentTeams admission seams before host/settings integration.
+**Completed so far:** The plugin pure core is repaired and pushed through commit 12c3ad4. The current one-command gate is green: formatting, zero lint warnings/errors, typecheck, 56/56 unit tests across 6 files, and host/client builds. Official DSH commit 54ee6b6f6 still owns the verified ordinary one-shot/continuable admission foundation (156/156 focused tests before the role worktree).
 **Changed files:**
-- src/contracts, src/core, src/scheduler, src/evaluation, src/audit, tests/unit — pure policy core and RED-first tests.
-- docs/FEATURE_MAP.md, docs/DECISIONS.md — implemented module relationships and pure-core boundary.
-- Official sibling checkout commit 54ee6b6f6 — generic SubagentRuntime admission service and lifecycle integration.
-**Next:** Integrate delegated immutable delegation roles and authoritative AgentTeams spawn/claim admission; repair independent findings AO-CONTRACT-001, AO-SCHED-001/AO-H01/AO-H02, AO-EVAL-001, AO-AUDIT-001/AO-H03, and AO-GATE-001; then implement host/plugin settings and public subscription-usage adapter.
-**Important state:** Global support remains fail-closed and must not be claimed yet. AgentTeams admission and immutable roles are in progress. Official checkout is clean and ahead one committed subagent seam before new delegated edits. Public plugin remote is https://github.com/mimateinn/dsh-plugin-adaptive-orchestrator.
-**Quick verification:** plugin: pnpm check => 50/50 tests and build pass, but independent review marks this gate incomplete for acceptance. DSH: focused SubagentRuntime service+continuation => 156/156 tests; tsc package => pass.
-**Independent review:** reviewer 58161356-e419-4513-87fd-90422e548d24 on frozen commit 3c77f945 returned CHANGES_REQUIRED; high findings are recorded in Next and require re-review after repair.
+- Plugin commits e97e058, 131cd9d, and 12c3ad4 harden exact lease/fence settlement, latest-20 safe-slot growth, closed QuotaSnapshot validation, canonical evaluation/CAS evidence, and checksummed privacy-safe audit persistence.
+- Official DSH working tree has an uncommitted delegationRole slice across core session/agent, subagent child metadata, JSONL, and SQLite schema v21 paths; it is incomplete until fixtures, direct/nested/cold-resume tests, docs, notes, and focused gates pass.
+**Next:** Complete and verify the immutable role slice. Then implement a generic transferred/covered admission contract so AgentTeams acquires once before provisioning commit, followed by atomic task-claim admission with attempt/revision fencing and complete lifecycle release. Only then implement plugin host/settings/subscription adapters.
+**Important state:** Global mode remains visibly unsupported and must fail closed until AgentTeams spawn + claim admission and immutable roles are authoritative. The first AgentTeams attempt was rolled back because roster acquisition plus continuable acquisition would double-admit one teammate; never reintroduce that design without lease transfer. AO-GATE-001 remains open: the current check is only the pure-core gate, not full acceptance.
+**Verification:** Plugin pnpm check on commit 12c3ad4 passed 56/56 tests and both builds. DSH role worktree package typechecks and continuation 107/107 were reported by its implementer, but broad session fixtures were RED before the last partial fix and require fresh verification. Independent pure-core re-review is in progress on frozen commit 12c3ad4.
+**Independent review:** Review core-repair-12c3ad4 assigned to subagent a4b871e0-8ecd-4cb0-baee-a64d8d16823a. Verdict NOT_RUN until its result returns. Original review on 3c77f945 was CHANGES_REQUIRED and drove the three repair commits.
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.
 - DSH Desktop 2.0.3 packaged seams were inspected; official source checkout now exists at ..\05 Notes\deepseek-harness-upstream, baseline 0a53fb55bea101816fa226bb964ae2bed71c343b.
-- The pure policy-core quality gate passes: format, lint, typecheck, 50 Vitest tests across 6 files, and host/client entry builds.
+- The repaired pure policy-core gate passes: format, zero-warning lint, typecheck, 56 Vitest tests across 6 files, and host/client entry builds (commit 12c3ad4).
 - The user-approved icon SVG and exact PNG sizes are committed under assets/icon; no official standalone plugin-icon manifest convention is yet verified.
 
 ## Checklist
