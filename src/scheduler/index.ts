@@ -31,6 +31,7 @@ export type Lease = {
   state: "active" | "orphaned" | "released";
   orphanedAt?: number;
   cancellation?: "cancel" | "pause" | "remove" | "missing";
+  terminalOutcome?: "succeeded" | "failed" | "cancelled";
 };
 export type DispatchFence = {
   id: string;
@@ -427,11 +428,22 @@ export function createScheduler(
         return true;
       });
     },
-    release(leaseId: string, attemptId: string) {
+    providerTerminal(
+      leaseId: string,
+      attemptId: string,
+      outcome: "succeeded" | "failed" | "cancelled",
+    ) {
       return mutate((s) => {
         const l = s.leases.find((x) => x.leaseId === leaseId);
-        if (!l || l.attemptId !== attemptId || l.state === "released")
+        const fence = l && s.fences.find((x) => x.leaseId === l.leaseId);
+        if (
+          !l ||
+          l.attemptId !== attemptId ||
+          l.state === "released" ||
+          fence?.state !== "consumed"
+        )
           return false;
+        l.terminalOutcome = outcome;
         l.state = "released";
         return true;
       });

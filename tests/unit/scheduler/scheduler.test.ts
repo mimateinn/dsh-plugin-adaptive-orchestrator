@@ -117,11 +117,31 @@ describe("durable adaptive scheduler", () => {
     s.enqueue(req("b1", "background"));
     const leases = s.tick([route("r")], 0);
     expect(leases.map((x) => x.requestId)).toEqual(["i1", "i2", "b1"]);
-    for (const lease of leases) s.release(lease.leaseId, lease.attemptId);
+    for (const lease of leases) {
+      expect(
+        s.consumeFence(
+          lease.fenceId,
+          { settings: 1, model: 1, capability: 1 },
+          1,
+        ),
+      ).toBe(true);
+      expect(
+        s.providerTerminal(lease.leaseId, lease.attemptId, "succeeded"),
+      ).toBe(true);
+    }
     s.enqueue(req("b2", "background"));
     const promoted = s.tick([route("r")], 40000)[0]!;
     expect(promoted.requestId).toBe("b2");
-    expect(s.release(promoted.leaseId, promoted.attemptId)).toBe(true);
+    expect(
+      s.consumeFence(
+        promoted.fenceId,
+        { settings: 1, model: 1, capability: 1 },
+        40001,
+      ),
+    ).toBe(true);
+    expect(
+      s.providerTerminal(promoted.leaseId, promoted.attemptId, "succeeded"),
+    ).toBe(true);
   });
   it("CAS rejects stale revisions", () => {
     const st = new MemoryStateStore();
@@ -154,10 +174,18 @@ describe("durable adaptive scheduler", () => {
       req("request-collides-with-lease", "interactive", "r", "attempt-current"),
     );
     const l = s.tick([route("r")], 0)[0]!;
-    expect(s.release(l.requestId, l.attemptId)).toBe(false);
-    expect(s.release(l.leaseId, "attempt-stale")).toBe(false);
-    expect(s.release(l.leaseId, l.attemptId)).toBe(true);
-    expect(s.release(l.leaseId, l.attemptId)).toBe(false);
+    expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(false);
+    expect(
+      s.consumeFence(l.fenceId, { settings: 1, model: 1, capability: 1 }, 1),
+    ).toBe(true);
+    expect(s.providerTerminal(l.requestId, l.attemptId, "succeeded")).toBe(
+      false,
+    );
+    expect(s.providerTerminal(l.leaseId, "attempt-stale", "succeeded")).toBe(
+      false,
+    );
+    expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(true);
+    expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(false);
   });
   it("cancels queued work and revokes armed fences", () => {
     const s = createScheduler(new MemoryStateStore());
@@ -294,7 +322,9 @@ describe("adversarial scheduler specification", () => {
         1,
       ),
     ).toBe(false);
-    expect(s.release(lease.leaseId, lease.attemptId)).toBe(false);
+    expect(
+      s.providerTerminal(lease.leaseId, lease.attemptId, "succeeded"),
+    ).toBe(false);
   });
   it("uses the exact SHA-256 seed bytes for deterministic full jitter", () => {
     expect(deterministicBackoff("r", 3, 7)).toBe(30625);
@@ -315,8 +345,12 @@ describe("adversarial scheduler specification", () => {
         .read()
         .state.leases.find((x) => x.leaseId === l.leaseId)!;
       expect(pending).toMatchObject({ state: "active", cancellation: reason });
-      expect(s.release(l.leaseId, l.attemptId)).toBe(true);
-      expect(s.release(l.leaseId, l.attemptId)).toBe(false);
+      expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(
+        true,
+      );
+      expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(
+        false,
+      );
     },
   );
   it("revokes and releases an expired armed fence when consumption is attempted", () => {
@@ -330,7 +364,7 @@ describe("adversarial scheduler specification", () => {
         30001,
       ),
     ).toBe(false);
-    expect(s.release(l.leaseId, "1")).toBe(false);
+    expect(s.providerTerminal(l.leaseId, "1", "succeeded")).toBe(false);
   });
   it("restart releases armed fences and repeated recovery preserves the original orphan deadline", () => {
     const store = new MemoryStateStore();
