@@ -6,11 +6,29 @@ export type ToolDecision = { kind: "allow" } | { kind: "deny"; reason: string };
 export type RoleLike = "captain" | "worker" | undefined;
 
 /**
- * Capability-based captain allowlist: planning, tasking, delegation control,
- * status, messaging, and result collection. A tool name alone cannot grant a
- * capability; this list is the minimal orchestration surface.
+ * Capability-based captain allowlist. Membership is granted either from the
+ * minimal builtin orchestration surface or by explicit trusted registration
+ * (never by a tool name alone appearing in the call stream).
  */
-export const CAPTAIN_ALLOWLIST = new Set([
+export class OrchestrationAllowlist {
+  private readonly names = new Set<string>();
+
+  constructor(initial: readonly string[] = []) {
+    for (const name of initial) this.names.add(name);
+  }
+
+  /** Grant orchestration capability from trusted plugin code. */
+  add(name: string): void {
+    this.names.add(name);
+  }
+
+  has(name: string): boolean {
+    return this.names.has(name);
+  }
+}
+
+/** Minimal builtin orchestration surface for the captain. */
+export const BUILTIN_CAPTAIN_TOOLS = [
   "plan",
   "ask_user",
   "todo",
@@ -22,20 +40,20 @@ export const CAPTAIN_ALLOWLIST = new Set([
   "job_collect",
   "message",
   "message_send",
-]);
+];
 
 /** Decide whether a tool call may proceed under the captain policy. */
 export function decideTool(
   role: RoleLike,
   toolName: string,
   enabled: boolean,
-  allowlist: ReadonlySet<string> = CAPTAIN_ALLOWLIST,
+  allowlist: OrchestrationAllowlist,
 ): ToolDecision {
   if (!enabled) return { kind: "allow" };
   if (role === "worker") return { kind: "allow" };
   if (role !== "captain") {
     // Without an authoritative immutable role the policy cannot prove the
-    // caller is the captain; the deployment must fail closed at startup.
+    // caller is the captain; enforcement must fail closed.
     return {
       kind: "deny",
       reason:

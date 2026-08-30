@@ -7,7 +7,11 @@ import {
   SettingsService,
   defaultSettings,
 } from "../../../src/host/settings.js";
-import { decideTool } from "../../../src/host/policy.js";
+import {
+  BUILTIN_CAPTAIN_TOOLS,
+  decideTool,
+  OrchestrationAllowlist,
+} from "../../../src/host/policy.js";
 import {
   createDelegationHandler,
   createTaskClaimHandler,
@@ -127,38 +131,53 @@ describe("host settings", () => {
 });
 
 describe("captain policy", () => {
+  const builtin = () => new OrchestrationAllowlist(BUILTIN_CAPTAIN_TOOLS);
+
   it("allows orchestration tools and denies execution tools for captains", () => {
-    expect(decideTool("captain", "todo", true)).toEqual({ kind: "allow" });
-    expect(decideTool("captain", "fs_read", true)).toMatchObject({
+    expect(decideTool("captain", "todo", true, builtin())).toEqual({
+      kind: "allow",
+    });
+    expect(decideTool("captain", "fs_read", true, builtin())).toMatchObject({
       kind: "deny",
     });
-    expect(decideTool("captain", "shell_bash", true)).toMatchObject({
+    expect(decideTool("captain", "shell_bash", true, builtin())).toMatchObject({
       kind: "deny",
     });
   });
 
   it("lets workers through and bypasses when disabled", () => {
-    expect(decideTool("worker", "fs_read", true)).toEqual({ kind: "allow" });
-    expect(decideTool("captain", "fs_read", false)).toEqual({ kind: "allow" });
+    expect(decideTool("worker", "fs_read", true, builtin())).toEqual({
+      kind: "allow",
+    });
+    expect(decideTool("captain", "fs_read", false, builtin())).toEqual({
+      kind: "allow",
+    });
   });
 
   it("denies unknown tool names for captains", () => {
-    expect(decideTool("captain", "future_unknown_tool", true)).toMatchObject({
+    expect(
+      decideTool("captain", "future_unknown_tool", true, builtin()),
+    ).toMatchObject({ kind: "deny" });
+  });
+
+  it("fails closed when the caller role is unavailable", () => {
+    expect(decideTool(undefined, "todo", true, builtin())).toMatchObject({
       kind: "deny",
     });
   });
 
-  it("fails closed when the caller role is unavailable", () => {
-    expect(decideTool(undefined, "todo", true)).toMatchObject({ kind: "deny" });
-  });
-
-  it("honors a custom allowlist", () => {
-    expect(
-      decideTool("captain", "custom_orch", true, new Set(["custom_orch"])),
-    ).toEqual({ kind: "allow" });
-    expect(
-      decideTool("captain", "todo", true, new Set(["custom_orch"])),
-    ).toMatchObject({ kind: "deny" });
+  it("denies an allowlisted name until explicitly registered by trusted code", () => {
+    const allowlist = new OrchestrationAllowlist(["trusted_only"]);
+    expect(decideTool("captain", "todo", true, allowlist)).toMatchObject({
+      kind: "deny",
+    });
+    expect(decideTool("captain", "trusted_only", true, allowlist)).toEqual({
+      kind: "allow",
+    });
+    allowlist.add("later");
+    expect(decideTool("captain", "later", true, allowlist)).toEqual({
+      kind: "allow",
+    });
   });
 });
 

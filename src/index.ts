@@ -15,14 +15,21 @@ import {
   type HostCapabilities,
 } from "./host/compatibility.js";
 import {
-  CAPTAIN_ALLOWLIST,
+  BUILTIN_CAPTAIN_TOOLS,
   CAPTAIN_GUIDANCE,
   decideTool,
+  OrchestrationAllowlist,
 } from "./host/policy.js";
 import {
   createDelegationHandler,
   createTaskClaimHandler,
+  type SchedulerGateway,
 } from "./host/admission.js";
+import {
+  createScheduler,
+  MemoryStateStore,
+  type Route,
+} from "./scheduler/index.js";
 
 export * from "./persistence/index.js";
 export * from "./host/index.js";
@@ -51,16 +58,67 @@ interface CallerAgent {
   delegationRole?: "captain" | "worker";
 }
 
-function hostCapabilities(ctx: Context): HostCapabilities {
+/**
+ * Static seam evidence. The immutable-role seam is intentionally NOT claimed
+ * here: it is proven at runtime by the first observed agent role, and until
+ * then the tool guard denies every captain call (fail closed).
+ */
+function hostCapabilities(
+  ctx: Context,
+  roleProven: { current: boolean },
+): HostCapabilities {
   const admission = ctx.get("delegationAdmission");
   const caps = admission?.capabilities?.();
   return {
     admissionProtocol: caps?.protocol,
     admissionVersion: caps?.version,
     taskClaim: caps?.taskClaim,
-    // Immutable roles ship with the same host as the task-claim seam; the
-    // tool guard additionally fails closed when a real caller lacks a role.
-    agentRole: true,
+    ...(roleProven.current ? { agentRole: true } : {}),
+  };
+}
+
+/** Build the real in-process scheduler gateway used while orchestration is active. */
+function buildSchedulerGateway(): SchedulerGateway {
+  const store = new MemoryStateStore();
+  const scheduler = createScheduler(store, {
+    globalCap: 8,
+    providerCap: 4,
+    accountCap: 4,
+    modelCap: 4,
+    interactiveReserve: 1,
+    backgroundReserve: 1,
+  });
+  return {
+    acquire: async (request) => {
+      const route: Route = {
+        id: "default",
+        provider: "default",
+        account: "default",
+        model: "default",
+        safeSlots: 1,
+      };
+      const enqueued = scheduler.enqueue({ ...request, deficitCost: 1 });
+      if (enqueued.kind !== "admitted")
+        throw new Error("admission queue rejected the request");
+      const started = scheduler.tick([route], Date.now());
+      const lease = started.find(
+        (candidate) => candidate.requestId === request.requestId,
+      );
+      if (lease === undefined) {
+        scheduler.cancel(request.requestId, "cancel");
+        throw new Error("no scheduler capacity for the request");
+      }
+      return { leaseId: lease.leaseId };
+    },
+    release: async (leaseId, attemptId) => {
+      const token = scheduler.observeProviderTerminal(
+        leaseId,
+        attemptId,
+        "succeeded",
+      );
+      if (token === false) scheduler.cancel(attemptId, "cancel");
+      else scheduler.settleProviderTerminal(token);
+    },
   };
 }
 
@@ -70,71 +128,126 @@ export function apply(ctx: Context, config: Config = {}): void {
   const settings = new SettingsService(
     new FileSettingsRepository(profileDirectory),
   );
-  const enabled = config.enabled ?? false;
-  if (!enabled) return;
+  const configEnabled = config.enabled ?? false;
+  if (!configEnabled) return;
 
+  const roleProven = { current: false };
   const report = compatibilityReport(
-    { capabilities: () => hostCapabilities(ctx) },
+    { capabilities: () => hostCapabilities(ctx, roleProven) },
     config.dshVersion ?? "unknown",
   );
-  if (!report.supported) {
+  // The role seam is proven at runtime; the static gate covers the admission seams.
+  const staticFailures = report.failures.filter(
+    (failure) => failure.code !== "AGENT_ROLE",
+  );
+  if (staticFailures.length > 0) {
     ctx.logger.warn(
-      `adaptive orchestrator unavailable: ${report.failures.map((f) => f.code).join(", ")}`,
+      `adaptive orchestrator unavailable: ${staticFailures.map((failure) => failure.code).join(", ")}`,
     );
     return;
   }
 
   ctx.effect(() => {
     const disposers: Array<() => void> = [];
-    void settings.read().then(async (stored) => {
-      const current = stored ?? defaultSettings();
-      if (!current.enabled) return;
+    const runtime = { active: false, roleProven: false };
+    roleProven.current = runtime.roleProven;
+    const allowlist = new OrchestrationAllowlist(BUILTIN_CAPTAIN_TOOLS);
+    const gateway = buildSchedulerGateway();
 
-      const section: PromptSection = {
-        name: "adaptive-orchestrator",
-        order: 1000,
-        text: CAPTAIN_GUIDANCE,
-      };
-      const sectionDisposer = ctx.systemPrompt?.section?.(section);
-      if (sectionDisposer !== undefined) disposers.push(sectionDisposer);
+    // Synchronous registration: cleanup cannot outrun hook installation.
+    const section: PromptSection = {
+      name: "adaptive-orchestrator",
+      order: 1000,
+      text: CAPTAIN_GUIDANCE,
+    };
+    const sectionDisposer = ctx.systemPrompt?.section?.(section);
+    if (sectionDisposer !== undefined) disposers.push(sectionDisposer);
 
-      const preExecute = async (
-        exec: ToolExecution,
-        next: () => Promise<PreToolDecision>,
-      ): Promise<PreToolDecision> => {
-        const caller = exec.agent as CallerAgent | undefined;
-        const decision = decideTool(
-          caller?.delegationRole,
-          exec.name,
-          true,
-          CAPTAIN_ALLOWLIST,
-        );
-        if (decision.kind === "deny")
-          return { kind: "deny", reason: decision.reason };
-        return next();
-      };
-      const eventDisposer = ctx.on("tools/pre-execute", preExecute as never);
-      if (eventDisposer !== undefined) disposers.push(eventDisposer);
-
-      const bridgeOptions = {
-        gateway: {
-          acquire: async () => ({ leaseId: crypto.randomUUID() }),
-          release: async () => undefined,
-        },
-        resolveRoute: () => "default",
-      };
-      const admission = ctx.get("delegationAdmission");
-      if (admission !== undefined) {
-        disposers.push(
-          admission.register(createDelegationHandler(bridgeOptions) as never),
-        );
-        disposers.push(
-          admission.registerTaskClaim(
-            createTaskClaimHandler(bridgeOptions) as never,
-          ),
-        );
+    const preExecute = async (
+      exec: ToolExecution,
+      next: () => Promise<PreToolDecision>,
+    ): Promise<PreToolDecision> => {
+      if (!runtime.active) return next();
+      const caller = exec.agent as CallerAgent | undefined;
+      if (caller?.delegationRole !== undefined) {
+        runtime.roleProven = true;
+        roleProven.current = true;
       }
-    });
+      const decision = decideTool(
+        caller?.delegationRole,
+        exec.name,
+        runtime.active,
+        allowlist,
+      );
+      if (decision.kind === "deny")
+        return { kind: "deny", reason: decision.reason };
+      return next();
+    };
+    const eventDisposer = ctx.on("tools/pre-execute", preExecute as never);
+    if (eventDisposer !== undefined) disposers.push(eventDisposer);
+
+    const bridgeOptions = {
+      gateway,
+      resolveRoute: () => "default",
+    };
+    const admission = ctx.get("delegationAdmission");
+    if (admission !== undefined) {
+      const delegation = createDelegationHandler(bridgeOptions);
+      const taskClaim = createTaskClaimHandler(bridgeOptions);
+      disposers.push(
+        admission.register(
+          (request: { provider: string }, signal: AbortSignal) => {
+            if (!runtime.active) return { release: () => undefined };
+            return delegation(request, signal);
+          },
+        ) as never,
+      );
+      disposers.push(
+        admission.registerTaskClaim({
+          prepare: (
+            request: {
+              teamId: string;
+              taskId: string;
+              attemptId: string;
+              ownerId: string;
+            },
+            signal: AbortSignal,
+          ) => {
+            if (!runtime.active)
+              return { commit: () => undefined, rollback: () => undefined };
+            return taskClaim.prepare(request, signal);
+          },
+          reacquire: (
+            request: {
+              teamId: string;
+              taskId: string;
+              attemptId: string;
+              ownerId: string;
+            },
+            signal: AbortSignal,
+          ) => {
+            if (!runtime.active)
+              return { commit: () => undefined, rollback: () => undefined };
+            return taskClaim.reacquire(request, signal);
+          },
+        }) as never,
+      );
+    }
+
+    void settings
+      .read()
+      .then((stored) => {
+        runtime.active = (stored ?? defaultSettings()).enabled;
+        if (runtime.active && !runtime.roleProven) {
+          ctx.logger.info(
+            "adaptive orchestrator enabled; awaiting the first observed delegation role",
+          );
+        }
+      })
+      .catch(() => {
+        runtime.active = false;
+      });
+
     return () => {
       for (const dispose of disposers) dispose();
     };
