@@ -497,14 +497,6 @@ export function createScheduler(
         return true;
       });
     },
-    providerTerminal(
-      leaseId: string,
-      attemptId: string,
-      outcome: "succeeded" | "failed" | "cancelled",
-    ) {
-      const token = this.observeProviderTerminal(leaseId, attemptId, outcome);
-      return token !== false && this.settleProviderTerminal(token);
-    },
     recover(now: number) {
       return mutate((s) => {
         let orphaned = 0,

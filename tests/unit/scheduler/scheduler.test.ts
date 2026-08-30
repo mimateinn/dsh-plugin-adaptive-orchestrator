@@ -19,6 +19,15 @@ const route = (
   model = id,
   safeSlots = 4,
 ) => ({ id, provider, account, model, safeSlots });
+const settleProvider = (
+  scheduler: ReturnType<typeof createScheduler>,
+  leaseId: string,
+  attemptId: string,
+  outcome: "succeeded" | "failed" | "cancelled",
+) => {
+  const token = scheduler.observeProviderTerminal(leaseId, attemptId, outcome);
+  return token !== false && scheduler.settleProviderTerminal(token);
+};
 const req = (
   requestId: string,
   lane: "interactive" | "background",
@@ -142,7 +151,7 @@ describe("durable adaptive scheduler", () => {
         ),
       ).toBe(true);
       expect(
-        s.providerTerminal(lease.leaseId, lease.attemptId, "succeeded"),
+        settleProvider(s, lease.leaseId, lease.attemptId, "succeeded"),
       ).toBe(true);
     }
     s.enqueue(req("b2", "background"));
@@ -156,7 +165,7 @@ describe("durable adaptive scheduler", () => {
       ),
     ).toBe(true);
     expect(
-      s.providerTerminal(promoted.leaseId, promoted.attemptId, "succeeded"),
+      settleProvider(s, promoted.leaseId, promoted.attemptId, "succeeded"),
     ).toBe(true);
   });
   it("CAS rejects stale revisions", () => {
@@ -190,18 +199,18 @@ describe("durable adaptive scheduler", () => {
       req("request-collides-with-lease", "interactive", "r", "attempt-current"),
     );
     const l = s.tick([route("r")], 0)[0]!;
-    expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(false);
+    expect(settleProvider(s, l.leaseId, l.attemptId, "succeeded")).toBe(false);
     expect(
       s.consumeFence(l.fenceId, { settings: 1, model: 1, capability: 1 }, 1),
     ).toBe(true);
-    expect(s.providerTerminal(l.requestId, l.attemptId, "succeeded")).toBe(
+    expect(settleProvider(s, l.requestId, l.attemptId, "succeeded")).toBe(
       false,
     );
-    expect(s.providerTerminal(l.leaseId, "attempt-stale", "succeeded")).toBe(
+    expect(settleProvider(s, l.leaseId, "attempt-stale", "succeeded")).toBe(
       false,
     );
-    expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(true);
-    expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(false);
+    expect(settleProvider(s, l.leaseId, l.attemptId, "succeeded")).toBe(true);
+    expect(settleProvider(s, l.leaseId, l.attemptId, "succeeded")).toBe(false);
   });
   it("cancels queued work and revokes armed fences", () => {
     const s = createScheduler(new MemoryStateStore());
@@ -338,9 +347,9 @@ describe("adversarial scheduler specification", () => {
         1,
       ),
     ).toBe(false);
-    expect(
-      s.providerTerminal(lease.leaseId, lease.attemptId, "succeeded"),
-    ).toBe(false);
+    expect(settleProvider(s, lease.leaseId, lease.attemptId, "succeeded")).toBe(
+      false,
+    );
   });
   it("uses the exact SHA-256 seed bytes for deterministic full jitter", () => {
     expect(deterministicBackoff("r", 3, 7)).toBe(30625);
@@ -439,14 +448,12 @@ describe("adversarial scheduler specification", () => {
         .read()
         .state.leases.find((x) => x.leaseId === l.leaseId)!;
       expect(pending).toMatchObject({ state: "active", cancellation: reason });
-      expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(
-        true,
-      );
+      expect(settleProvider(s, l.leaseId, l.attemptId, "succeeded")).toBe(true);
       expect(
         store.read().state.leases.find((lease) => lease.leaseId === l.leaseId)
           ?.terminalOutcome,
       ).toBe("cancelled");
-      expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(
+      expect(settleProvider(s, l.leaseId, l.attemptId, "succeeded")).toBe(
         false,
       );
     },
@@ -462,7 +469,7 @@ describe("adversarial scheduler specification", () => {
         30001,
       ),
     ).toBe(false);
-    expect(s.providerTerminal(l.leaseId, "1", "succeeded")).toBe(false);
+    expect(settleProvider(s, l.leaseId, "1", "succeeded")).toBe(false);
   });
   it("restart releases armed fences and repeated recovery preserves the original orphan deadline", () => {
     const store = new MemoryStateStore();
