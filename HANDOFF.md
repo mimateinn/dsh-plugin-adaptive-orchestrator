@@ -11,7 +11,7 @@
 **Next:** Await final claim re-review; then subscriptions usage adapter, Settings UI + status panel, full acceptance gate (integration, compatibility fixtures, GUI E2E, packaged smoke), independent security/GUI reviews, real GUI verification, user visual acceptance, tagged release + fresh-install verification.
 **Important state:** Global mode remains visibly unsupported and must fail closed until spawn + claim admission and immutable roles are authoritative; host apply() only registers policy when the compatibility probe passes. AO-GATE-001 remains open.
 **Verification:** Plugin pnpm check 94/94 across 8 files green on c9b4da1. DSH claim branch: agent-team 58/58, subagent 222/222, build:lib:host green, lint/diff clean.
-**Independent review:** Persistence PASS (6bc62de4). Claim slice: reviews 37c2568a and fb3fcf19 required and we fixed the recovery gate, lease leaks, exception-safe handoff, and serialized per-root passes; final re-review 948584d6-7a5b-4392-bbc1-27b96f543c2b running. Plugin host security/architecture review NOT_RUN.
+**Independent review:** Persistence PASS (6bc62de4). Claim slice final signoff PASS (948584d6) at 9765f6f16: recovery gate, lease leaks, exception-safe handoff, and serialized per-root passes all fixed across three review rounds; agent-team 58/58. Plugin host security/privacy review 88f26751-12b3-4da8-acea-6d478e126ba8 running on c9b4da1 + ce7aa67.
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.
