@@ -35,6 +35,14 @@ export type Lease = {
   cancellationObservedSequence?: number;
   providerTerminalSequence?: number;
 };
+export type ProviderTerminalObservation = {
+  token: string;
+  leaseId: string;
+  attemptId: string;
+  outcome: "succeeded" | "failed" | "cancelled";
+  sequence: number;
+  state: "observed" | "settled";
+};
 export type DispatchFence = {
   id: string;
   leaseId: string;
@@ -52,6 +60,7 @@ export type SchedulerState = {
   sequence: number;
   lastStart: Record<Lane, number>;
   eventSequence: number;
+  providerTerminalObservations: ProviderTerminalObservation[];
 };
 const initial = (): SchedulerState => ({
   queue: [],
@@ -61,6 +70,7 @@ const initial = (): SchedulerState => ({
   sequence: 0,
   lastStart: { interactive: 0, background: 0 },
   eventSequence: 0,
+  providerTerminalObservations: [],
 });
 
 export class MemoryStateStore {
@@ -432,7 +442,7 @@ export function createScheduler(
         return true;
       });
     },
-    providerTerminal(
+    observeProviderTerminal(
       leaseId: string,
       attemptId: string,
       outcome: "succeeded" | "failed" | "cancelled",
@@ -443,19 +453,57 @@ export function createScheduler(
         if (
           !l ||
           l.attemptId !== attemptId ||
-          l.state === "released" ||
-          fence?.state !== "consumed"
+          l.state !== "active" ||
+          fence?.state !== "consumed" ||
+          s.providerTerminalObservations.some(
+            (x) => x.leaseId === leaseId && x.state === "observed",
+          )
         )
           return false;
-        l.providerTerminalSequence = ++s.eventSequence;
+        const sequence = ++s.eventSequence;
+        const token = `provider-terminal-${sequence}-${leaseId}`;
+        s.providerTerminalObservations.push({
+          token,
+          leaseId,
+          attemptId,
+          outcome,
+          sequence,
+          state: "observed",
+        });
+        return token;
+      });
+    },
+    settleProviderTerminal(token: string) {
+      return mutate((s) => {
+        const observation = s.providerTerminalObservations.find(
+          (x) => x.token === token && x.state === "observed",
+        );
+        if (!observation) return false;
+        const l = s.leases.find(
+          (x) =>
+            x.leaseId === observation.leaseId &&
+            x.attemptId === observation.attemptId &&
+            x.state === "active",
+        );
+        if (!l) return false;
+        observation.state = "settled";
+        l.providerTerminalSequence = observation.sequence;
         l.terminalOutcome =
           l.cancellationObservedSequence !== undefined &&
-          l.cancellationObservedSequence < l.providerTerminalSequence
+          l.cancellationObservedSequence < observation.sequence
             ? "cancelled"
-            : outcome;
+            : observation.outcome;
         l.state = "released";
         return true;
       });
+    },
+    providerTerminal(
+      leaseId: string,
+      attemptId: string,
+      outcome: "succeeded" | "failed" | "cancelled",
+    ) {
+      const token = this.observeProviderTerminal(leaseId, attemptId, outcome);
+      return token !== false && this.settleProviderTerminal(token);
     },
     recover(now: number) {
       return mutate((s) => {

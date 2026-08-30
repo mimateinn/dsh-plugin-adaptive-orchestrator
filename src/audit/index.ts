@@ -130,10 +130,18 @@ export function appendAudit(
   records: readonly AuditEvent[],
   event: AuditEvent,
   now: number,
+  retentionDays = 7,
 ): AuditEvent[] {
-  if (!validEvent(event)) throw new Error("Invalid audit event");
+  if (
+    !Number.isSafeInteger(retentionDays) ||
+    retentionDays < 1 ||
+    retentionDays > 30
+  )
+    throw new Error("Invalid audit retention days");
+  if (!validEvent(event) || Date.parse(event.timestamp) > now)
+    throw new Error("Invalid audit event");
   return [...records, event]
-    .filter((x) => now - Date.parse(x.timestamp) <= 7 * DAY)
+    .filter((x) => now - Date.parse(x.timestamp) <= retentionDays * DAY)
     .slice(-MAX_RECORDS);
 }
 export function encodeAuditStore(records: readonly AuditEvent[]): string {

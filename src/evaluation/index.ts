@@ -78,6 +78,10 @@ const outcomeKeys = new Set([
   "mandatoryTool",
   "corpusHash",
 ]);
+const rfc3339Utc = (value: unknown) =>
+  typeof value === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value) &&
+  Number.isFinite(Date.parse(value));
 const validOutcome = (s: ModelEvaluation, o: EvaluationOutcome) =>
   Object.keys(o).every((key) => outcomeKeys.has(key)) &&
   Object.keys(o).length === outcomeKeys.size &&
@@ -91,7 +95,8 @@ const validOutcome = (s: ModelEvaluation, o: EvaluationOutcome) =>
   o.sequence >= 0 &&
   Number.isSafeInteger(o.latencyMs) &&
   o.latencyMs >= 0 &&
-  Number.isFinite(Date.parse(o.startedAt)) &&
+  rfc3339Utc(o.startedAt) &&
+  rfc3339Utc(o.finishedAt) &&
   Date.parse(o.startedAt) <= Date.parse(o.finishedAt) &&
   /^[a-f0-9]{64}$/.test(o.corpusHash);
 function normalizeOutcome(
@@ -107,7 +112,7 @@ function normalizeOutcome(
     taskClass: state.taskClass,
     probeId: input.probeId,
     probeCorpusVersion: state.probeCorpusVersion,
-    sequence: state.outcomes.length,
+    sequence: (state.highestSequence ?? -1) + 1,
     startedAt: timestamp,
     finishedAt: timestamp,
     result: input.safetyViolation

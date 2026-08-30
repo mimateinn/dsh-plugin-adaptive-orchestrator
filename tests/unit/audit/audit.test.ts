@@ -43,6 +43,35 @@ describe("privacy-safe audit", () => {
       }),
     ).toThrow();
   });
+  it("rejects non-UTC and future timestamps", () => {
+    expect(() =>
+      createAuditEvent({
+        eventId: "offset",
+        timestamp: "2026-01-01T01:00:00+01:00",
+        kind: "route",
+        reasonCodes: [],
+        routeId: "r",
+        salt: "s",
+      }),
+    ).toThrow();
+    const future = createAuditEvent({
+      eventId: "future",
+      timestamp: "2030-01-01T00:00:00Z",
+      kind: "route",
+      reasonCodes: [],
+      routeId: "r",
+      salt: "s",
+    });
+    expect(() =>
+      appendAudit([], future, Date.parse("2029-01-01T00:00:00Z")),
+    ).toThrow();
+    expect(
+      parseAuditStore(
+        encodeAuditStore([future]),
+        Date.parse("2029-01-01T00:00:00Z"),
+      ),
+    ).toMatchObject({ corrupted: true, degraded: true, action: "rotate" });
+  });
   it("round trips a bounded checksummed envelope", () => {
     const raw = encodeAuditStore([event()]);
     expect(parseAuditStore(raw)).toEqual({
@@ -110,13 +139,29 @@ describe("privacy-safe audit", () => {
     });
     expect(second.routeHash).not.toBe(first.routeHash);
   });
-  it("retains seven days or ten thousand records", () => {
+  it("honors configurable retention while defaulting to seven days", () => {
+    const day = 86_400_000;
+    const twoDaysOld = event(day);
+    const current = event(3 * day);
+
+    expect(appendAudit([twoDaysOld], current, 3 * day, 1)).toEqual([current]);
+    expect(appendAudit([twoDaysOld], current, 3 * day)).toEqual([
+      twoDaysOld,
+      current,
+    ]);
+    expect(appendAudit([twoDaysOld], current, 3 * day, 7)).toEqual([
+      twoDaysOld,
+      current,
+    ]);
+  });
+  it("rejects invalid retention days", () => {
+    for (const retentionDays of [0, 31, 1.5, Number.NaN])
+      expect(() => appendAudit([], event(), 0, retentionDays)).toThrow();
+  });
+  it("retains at most ten thousand records", () => {
     const xs = Array.from({ length: 10_005 }, (_, i) => event(i));
     expect(appendAudit(xs.slice(0, -1), xs.at(-1)!, 10_005)).toHaveLength(
       10_000,
     );
-    expect(
-      appendAudit(xs.slice(-10_000), event(8 * 86_400_000), 8 * 86_400_000),
-    ).toHaveLength(1);
   });
 });

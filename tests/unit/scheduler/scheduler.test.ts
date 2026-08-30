@@ -346,6 +346,84 @@ describe("adversarial scheduler specification", () => {
     expect(deterministicBackoff("r", 3, 7)).toBe(30625);
     expect(deterministicBackoff("r", 99, 7)).toBe(483013);
   });
+  it("orders provider observation before later cancellation at settlement", () => {
+    const store = new MemoryStateStore();
+    const s = createScheduler(store);
+    s.enqueue(req("observed-first", "interactive"));
+    const lease = s.tick([route("r")], 0)[0]!;
+    expect(
+      s.consumeFence(
+        lease.fenceId,
+        { settings: 1, model: 1, capability: 1 },
+        1,
+      ),
+    ).toBe(true);
+    const token = s.observeProviderTerminal(
+      lease.leaseId,
+      lease.attemptId,
+      "succeeded",
+    );
+    expect(token).toEqual(expect.any(String));
+    if (token === false) throw new Error("provider observation rejected");
+    expect(s.cancel(lease.requestId)).toBe(true);
+    expect(s.settleProviderTerminal(token)).toBe(true);
+    expect(
+      store.read().state.leases.find((x) => x.leaseId === lease.leaseId)
+        ?.terminalOutcome,
+    ).toBe("succeeded");
+  });
+  it("orders cancellation before later provider observation at settlement", () => {
+    const store = new MemoryStateStore();
+    const s = createScheduler(store);
+    s.enqueue(req("cancelled-first", "interactive"));
+    const lease = s.tick([route("r")], 0)[0]!;
+    expect(
+      s.consumeFence(
+        lease.fenceId,
+        { settings: 1, model: 1, capability: 1 },
+        1,
+      ),
+    ).toBe(true);
+    expect(s.cancel(lease.requestId)).toBe(true);
+    const token = s.observeProviderTerminal(
+      lease.leaseId,
+      lease.attemptId,
+      "succeeded",
+    );
+    if (token === false) throw new Error("provider observation rejected");
+    expect(s.settleProviderTerminal(token)).toBe(true);
+    expect(
+      store.read().state.leases.find((x) => x.leaseId === lease.leaseId)
+        ?.terminalOutcome,
+    ).toBe("cancelled");
+  });
+  it("rejects forged, stale, and duplicate provider observation tokens", () => {
+    const s = createScheduler(new MemoryStateStore());
+    s.enqueue(req("token", "interactive"));
+    const lease = s.tick([route("r")], 0)[0]!;
+    expect(
+      s.observeProviderTerminal(lease.leaseId, lease.attemptId, "succeeded"),
+    ).toBe(false);
+    expect(
+      s.consumeFence(
+        lease.fenceId,
+        { settings: 1, model: 1, capability: 1 },
+        1,
+      ),
+    ).toBe(true);
+    expect(s.observeProviderTerminal(lease.leaseId, "stale", "succeeded")).toBe(
+      false,
+    );
+    const token = s.observeProviderTerminal(
+      lease.leaseId,
+      lease.attemptId,
+      "succeeded",
+    );
+    expect(s.settleProviderTerminal("forged-token")).toBe(false);
+    if (token === false) throw new Error("provider observation rejected");
+    expect(s.settleProviderTerminal(token)).toBe(true);
+    expect(s.settleProviderTerminal(token)).toBe(false);
+  });
   it.each(["cancel", "pause", "remove", "missing"] as const)(
     "%s after consumption records cancellation and waits for provider terminal release",
     (reason) => {

@@ -82,6 +82,10 @@ describe("model evaluation", () => {
     expect(() =>
       recordOutcome(many, outcome(0), many.revision, now + 1000),
     ).toThrow();
+    const restored = structuredClone(many);
+    expect(() =>
+      recordOutcome(restored, outcome(0), restored.revision, now + 1000),
+    ).toThrow();
     expect(() =>
       recordOutcome(
         many,
