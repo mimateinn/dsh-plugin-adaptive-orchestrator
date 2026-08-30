@@ -8,7 +8,7 @@
 | Persistent preferences | docs/PREFERENCES.md | Human-readable policy | All contributors |
 | Runtime contracts | src/contracts/ | Versioned settings, quota, routing, compatibility, CAS, canonical JSON | All trust boundaries and pure services |
 | Routing core | src/core/ | QuotaSnapshot, Candidate, RouteDecision, HealthState | Host and scheduler adapters |
-| Captain policy | src/host/ (planned) | DSH prompt and tool-policy hooks | Top-level captain sessions |
+| Host composition | src/host/ | CompatibilityReport, SettingsService, captain tool guard and guidance, scheduler admission bridges | src/index.ts apply(); DSH system-prompt and tools/pre-execute seams |
 | Usage adapter | src/integrations/ (planned) | SubscriptionUsageService | Routing core |
 | Delegation governor | src/scheduler/ | SchedulerState, QueueRecord, Lease, DispatchFence | Future DSH subagent and AgentTeams admission adapters |
 | Settings client | src/client/ (planned) | Typed settings/status RPC | DSH Settings UI |

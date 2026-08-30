@@ -38,3 +38,8 @@
 - **Why:** TeamJournal append and an external admission provider cannot form one atomic commit. A prepare-append-commit sequence has an unavoidable crash window after durable task ownership but before capacity commit.
 - **Rejected:** describe an in-memory transfer or prepare/rollback wrapper as atomic, because commit failure or process death can leave durable ownership without an active admission.
 - **Impact:** claim protocol v2 must use idempotent durable prepare/commit/reacquire/release keyed by teamId, taskId, expected revision, attemptId, and owner session. Global support remains fail-closed until DSH exposes this seam and recovery tests pass.
+
+## 2026-09-01 — Host policy as capability-negotiated fail-closed seams
+- **Why:** the captain tool guard and prompt guidance must be enforceable, not prompt text alone, and unavailable seams must disable global mode visibly.
+- **Rejected:** hard-coding DSH tool names as the allowlist, because capability identity must not be granted by a name alone; and enabling global mode when any required seam is missing.
+- **Impact:** src/host registers ctx.systemPrompt.section and a tools/pre-execute listener only after the compatibility probe passes; unknown tools and callers without an authoritative role are denied with a delegation message. Admission bridges map the plugin scheduler to ctx.delegationAdmission spawn and task-claim seams with exact-once release.

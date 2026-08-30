@@ -1,0 +1,57 @@
+/** Captain orchestration policy: delegation-only tool guard and prompt guidance. */
+
+export type ToolDecision = { kind: "allow" } | { kind: "deny"; reason: string };
+
+/** Delegation role of the calling agent (absent when the host lacks roles). */
+export type RoleLike = "captain" | "worker" | undefined;
+
+/**
+ * Capability-based captain allowlist: planning, tasking, delegation control,
+ * status, messaging, and result collection. A tool name alone cannot grant a
+ * capability; this list is the minimal orchestration surface.
+ */
+export const CAPTAIN_ALLOWLIST = new Set([
+  "plan",
+  "ask_user",
+  "todo",
+  "subagent",
+  "subagent_control",
+  "agent_team",
+  "agent_team_control",
+  "job_status",
+  "job_collect",
+  "message",
+  "message_send",
+]);
+
+/** Decide whether a tool call may proceed under the captain policy. */
+export function decideTool(
+  role: RoleLike,
+  toolName: string,
+  enabled: boolean,
+  allowlist: ReadonlySet<string> = CAPTAIN_ALLOWLIST,
+): ToolDecision {
+  if (!enabled) return { kind: "allow" };
+  if (role === "worker") return { kind: "allow" };
+  if (role !== "captain") {
+    // Without an authoritative immutable role the policy cannot prove the
+    // caller is the captain; the deployment must fail closed at startup.
+    return {
+      kind: "deny",
+      reason:
+        "delegation role is unavailable; global orchestration is not authoritative",
+    };
+  }
+  if (allowlist.has(toolName)) return { kind: "allow" };
+  return {
+    kind: "deny",
+    reason: `captain must delegate "${toolName}" to a qualified worker`,
+  };
+}
+
+/** System-prompt guidance contributed to captain sessions. */
+export const CAPTAIN_GUIDANCE = [
+  "You are the captain. Delegate code reading, research, design production, implementation, testing, and review to workers.",
+  "Direct, decompose, define dependencies, supervise, integrate results, and communicate with the user.",
+  "Use planning, task, delegation, status, messaging, and result-collection tools; do not execute worker tools yourself.",
+].join("\n");
