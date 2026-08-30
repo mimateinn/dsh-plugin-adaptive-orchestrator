@@ -154,6 +154,13 @@ describe("privacy-safe audit", () => {
       current,
     ]);
   });
+  it("rejects malformed and future prior records", () => {
+    const now = 2 * 86_400_000;
+    expect(() =>
+      appendAudit([{ ...event(), routeHash: "bad" }], event(now), now),
+    ).toThrow();
+    expect(() => appendAudit([event(now + 1)], event(now), now)).toThrow();
+  });
   it("rejects invalid retention days", () => {
     for (const retentionDays of [0, 31, 1.5, Number.NaN])
       expect(() => appendAudit([], event(), 0, retentionDays)).toThrow();

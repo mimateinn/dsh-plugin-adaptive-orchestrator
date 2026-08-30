@@ -55,6 +55,7 @@ describe("durable adaptive scheduler", () => {
     ).toBe(4));
   it("requires the latest eligible 20 error rate to be strictly below five percent", () => {
     const outcomes = Array.from({ length: 20 }, (_, i) => ({
+      sequence: i + 1,
       result: (i === 0 ? "provider-error" : "success") as
         "provider-error" | "success",
       latencyMs: 100,
@@ -74,13 +75,30 @@ describe("durable adaptive scheduler", () => {
       ),
     ).toBe(2);
   });
+  it("orders equal timestamps by stable outcome sequence for latest windows", () => {
+    const outcomes = Array.from({ length: 21 }, (_, i) => ({
+      sequence: i + 1,
+      result: (i === 0 ? "provider-error" : "success") as
+        "provider-error" | "success",
+      latencyMs: 100,
+      finishedAt: 1,
+    })).reverse();
+    expect(
+      scaleSafeSlots({ safeSlots: 1, lastIncreaseAt: 0, outcomes }, 60000),
+    ).toBe(2);
+    outcomes.find((x) => x.sequence === 21)!.result = "provider-error";
+    expect(
+      scaleSafeSlots({ safeSlots: 1, lastIncreaseAt: 0, outcomes }, 60000),
+    ).toBe(1);
+  });
   it("grows after exactly five ordered trailing successes", () => {
     expect(
       scaleSafeSlots(
         {
           safeSlots: 1,
           lastIncreaseAt: 0,
-          outcomes: [4, 1, 5, 2, 3].map((finishedAt) => ({
+          outcomes: [4, 1, 5, 2, 3].map((finishedAt, i) => ({
+            sequence: i + 1,
             result: "success" as const,
             latencyMs: 100,
             finishedAt,
@@ -97,6 +115,7 @@ describe("durable adaptive scheduler", () => {
           safeSlots: 1,
           lastIncreaseAt: 0,
           outcomes: Array.from({ length: 20 }, (_, i) => ({
+            sequence: i + 1,
             result: "success" as const,
             latencyMs: 100,
             finishedAt: i,
@@ -110,7 +129,14 @@ describe("durable adaptive scheduler", () => {
         {
           safeSlots: 4,
           lastIncreaseAt: 0,
-          outcomes: [{ result: "rate-limited", latencyMs: 1, finishedAt: 1 }],
+          outcomes: [
+            {
+              sequence: 1,
+              result: "rate-limited",
+              latencyMs: 1,
+              finishedAt: 1,
+            },
+          ],
         },
         2,
       ),
@@ -375,6 +401,7 @@ describe("adversarial scheduler specification", () => {
     expect(token).toEqual(expect.any(String));
     if (token === false) throw new Error("provider observation rejected");
     expect(s.cancel(lease.requestId)).toBe(true);
+    expect(s.cancel(lease.requestId, "pause")).toBe(true);
     expect(s.settleProviderTerminal(token)).toBe(true);
     expect(
       store.read().state.leases.find((x) => x.leaseId === lease.leaseId)
@@ -407,8 +434,10 @@ describe("adversarial scheduler specification", () => {
     ).toBe("cancelled");
   });
   it("rejects forged, stale, and duplicate provider observation tokens", () => {
-    const s = createScheduler(new MemoryStateStore());
-    s.enqueue(req("token", "interactive"));
+    const s = createScheduler(new MemoryStateStore(), {
+      tokenFactory: () => "opaque-uuid-token",
+    });
+    s.enqueue(req("request-secret", "interactive"));
     const lease = s.tick([route("r")], 0)[0]!;
     expect(
       s.observeProviderTerminal(lease.leaseId, lease.attemptId, "succeeded"),
@@ -428,6 +457,9 @@ describe("adversarial scheduler specification", () => {
       lease.attemptId,
       "succeeded",
     );
+    expect(token).toBe("opaque-uuid-token");
+    expect(token).not.toContain(lease.leaseId);
+    expect(token).not.toContain(lease.requestId);
     expect(s.settleProviderTerminal("forged-token")).toBe(false);
     if (token === false) throw new Error("provider observation rejected");
     expect(s.settleProviderTerminal(token)).toBe(true);

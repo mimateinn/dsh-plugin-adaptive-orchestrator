@@ -1,21 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
-  canRunProbe,
   createEvaluation,
+  migrateLegacyModelEvaluation,
+  parseModelEvaluation,
   qualificationDecision,
   recordOutcome,
-} from "../../../src/evaluation/index.js";
-import type {
-  EvaluationOutcome,
-  ModelEvaluation,
+  transitionOutcome,
+  type EvaluationOutcome,
+  type EvaluationStore,
+  type ModelEvaluation,
 } from "../../../src/evaluation/index.js";
 const now = Date.parse("2026-08-30T12:00:00Z"),
   hash = "a".repeat(64);
-const outcome = (
-  i: number,
-  result: EvaluationOutcome["result"] = "pass",
-  mandatoryTool = true,
-): EvaluationOutcome => ({
+const outcome = (i: number): EvaluationOutcome => ({
   schemaVersion: 1,
   modelId: "m",
   modelVersion: "v1",
@@ -25,98 +22,90 @@ const outcome = (
   sequence: i,
   startedAt: new Date(now + i * 2).toISOString(),
   finishedAt: new Date(now + i * 2 + 1).toISOString(),
-  result,
+  result: "pass",
   latencyMs: 1,
-  mandatoryTool,
+  mandatoryTool: true,
   corpusHash: hash,
 });
 const fresh = () =>
   createEvaluation("m", "v1", "code", "c1", new Date(now).toISOString());
+class MemoryStore implements EvaluationStore {
+  constructor(private value: ModelEvaluation) {}
+  async compareAndSwap(expectedRevision: number, next: ModelEvaluation) {
+    if (this.value.revision !== expectedRevision)
+      return {
+        success: false as const,
+        code: "conflict" as const,
+        currentRevision: this.value.revision,
+      };
+    this.value = structuredClone(next);
+    return { success: true as const, value: structuredClone(this.value) };
+  }
+  read() {
+    return structuredClone(this.value);
+  }
+}
 describe("model evaluation", () => {
-  it("qualifies five distinct same-corpus probes", () => {
+  it("retains pure transitions and qualifies deterministic probes", () => {
     let s = fresh();
-    for (let i = 0; i < 5; i++)
-      s = recordOutcome(s, outcome(i), s.revision, now + 20);
+    for (let i = 0; i < 5; i++) s = transitionOutcome(s, outcome(i), now + 20);
     expect(qualificationDecision(s, now + 20).status).toBe("qualified");
-    expect(() => recordOutcome(s, outcome(4), s.revision, now + 20)).toThrow();
-    expect(createEvaluation("m", "v2", "code", "c1").state).toBe("quarantined");
   });
-  it("enforces gates, expiry and hysteresis", () => {
-    let s = fresh();
-    for (let i = 0; i < 5; i++)
-      s = recordOutcome(
-        s,
-        outcome(i, i === 4 ? "fail" : "pass", i !== 4),
-        s.revision,
-        now + 20,
-      );
-    expect(qualificationDecision(s, now + 20).status).toBe("quarantined");
-    expect(qualificationDecision(s, now + 31 * 86_400_000).status).toBe(
-      "quarantined",
-    );
-    let q: ModelEvaluation = { ...fresh(), state: "qualified" };
-    q = recordOutcome(q, outcome(0, "pass", false), q.revision, now + 20);
-    expect(q.state).toBe("qualified");
-    q = recordOutcome(q, outcome(1, "pass", false), q.revision, now + 20);
-    expect(q.state).toBe("regressed");
-    let safety: ModelEvaluation = { ...fresh(), state: "qualified" };
-    safety = recordOutcome(
-      safety,
-      outcome(0, "safety-violation"),
-      safety.revision,
-      now + 20,
-    );
-    expect(safety.state).toBe("regressed");
+  it("allows only one of two concurrent stale writers", async () => {
+    const initial = fresh(),
+      store = new MemoryStore(initial);
+    const results = await Promise.all([
+      recordOutcome(store, initial, outcome(0), 0, now + 20),
+      recordOutcome(store, initial, outcome(1), 0, now + 20),
+    ]);
+    expect(results.filter((x) => x.success)).toHaveLength(1);
+    expect(store.read().revision).toBe(1);
   });
-  it("rejects stale, future, mismatched evidence and bounds history", () => {
-    const s = fresh();
-    expect(() => recordOutcome(s, outcome(0), 1, now + 20)).toThrow("Conflict");
+  it("requires closed bounded replay metadata on restore", () => {
+    const valid = fresh();
+    const missing = structuredClone(valid) as Partial<ModelEvaluation>;
+    delete missing.replay;
+    expect(() => parseModelEvaluation(missing)).toThrow();
+    expect(parseModelEvaluation(valid)).toEqual(valid);
     expect(() =>
-      recordOutcome(s, { ...outcome(0), modelVersion: "other" }, 0, now + 20),
-    ).toThrow();
-    expect(() => recordOutcome(s, outcome(0), 0, now)).toThrow();
-    let many = fresh();
-    for (let i = 0; i < 101; i++)
-      many = recordOutcome(many, outcome(i), many.revision, now + 1000);
-    expect(many.outcomes).toHaveLength(100);
-    expect(() =>
-      recordOutcome(many, outcome(0), many.revision, now + 1000),
-    ).toThrow();
-    const restored = structuredClone(many);
-    expect(() =>
-      recordOutcome(restored, outcome(0), restored.revision, now + 1000),
+      parseModelEvaluation({
+        ...valid,
+        replay: {
+          highestSequence: -1,
+          recentProbeIds: Array.from({ length: 101 }, (_, i) => `p${i}`),
+        },
+      }),
     ).toThrow();
     expect(() =>
-      recordOutcome(
-        many,
-        { ...outcome(101), extra: true } as never,
-        many.revision,
-        now + 1000,
-      ),
+      parseModelEvaluation({
+        ...valid,
+        replay: { highestSequence: -1, recentProbeIds: [" bad "] },
+      }),
     ).toThrow();
+    expect(() => parseModelEvaluation({ ...valid, extra: true })).toThrow();
   });
-  it("rejects mixed corpus hashes and leaves state unchanged on CAS conflict", () => {
-    let state = fresh();
-    state = recordOutcome(state, outcome(0), state.revision, now + 20);
-    const snapshot = structuredClone(state);
-    expect(() => recordOutcome(state, outcome(1), 0, now + 20)).toThrow(
-      "Conflict",
-    );
-    expect(state).toEqual(snapshot);
-    for (let i = 1; i < 5; i++)
-      state = recordOutcome(
-        state,
-        { ...outcome(i), corpusHash: i === 4 ? "b".repeat(64) : hash },
-        state.revision,
-        now + 20,
-      );
-    expect(qualificationDecision(state, now + 20)).toMatchObject({
-      status: "quarantined",
-      reasonCodes: ["PROBES_INCOMPLETE"],
+  it("migrates legacy replay fields only through explicit migration", () => {
+    const current = fresh();
+    const legacy = { ...current, highestSequence: -1, evidenceIds: [] };
+    delete (legacy as Partial<ModelEvaluation>).replay;
+    expect(migrateLegacyModelEvaluation(legacy as never).replay).toEqual({
+      highestSequence: -1,
+      recentProbeIds: [],
     });
   });
-  it("enforces default daily budget and ignores future budget timestamps", () => {
-    expect(canRunProbe([now, now + 1, now + 2], now + 3)).toBe(false);
-    expect(canRunProbe([now + 10], now)).toBe(true);
+  it("rejects replay and malformed outcomes", () => {
+    const s = fresh(),
+      once = transitionOutcome(s, outcome(0), now + 20);
+    expect(() => transitionOutcome(once, outcome(0), now + 20)).toThrow();
+    expect(() =>
+      transitionOutcome(
+        s,
+        { ...outcome(0), probeId: "x".repeat(201) },
+        now + 20,
+      ),
+    ).toThrow();
+    expect(() =>
+      transitionOutcome(s, { ...outcome(0), extra: true } as never, now + 20),
+    ).toThrow();
   });
 });

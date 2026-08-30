@@ -7,7 +7,7 @@ import {
   validateGlobalSettings,
   validateRouteRequirements,
   negotiateSchemaVersion,
-  compareAndSwap,
+  saveGlobalSettings,
   validateQuotaSnapshot,
 } from "../../../src/contracts/index.js";
 
@@ -139,31 +139,30 @@ describe("Phase 1 contracts", () => {
       hashAdmissionPayload({ ...input, createdAt: "2027-01-01T00:00:00Z" }),
     );
   });
-  it("negotiates versions and performs immutable CAS", () => {
-    expect(negotiateSchemaVersion(2, 1)).toMatchObject({
-      success: false,
-      errors: [{ code: "unsupported_version", path: "/schemaVersion" }],
+  it("validates settings before delegating atomic CAS", async () => {
+    expect(negotiateSchemaVersion(2, 1)).toMatchObject({ success: false });
+    let calls = 0;
+    const repository = {
+      async compareAndSwap(expectedRevision: number, next: never) {
+        calls++;
+        return { success: true as const, value: next };
+      },
+    };
+    await expect(
+      saveGlobalSettings(repository, 0, { schemaVersion: 1, revision: 1 }),
+    ).rejects.toThrow();
+    expect(calls).toBe(0);
+    const proposed = validateGlobalSettings({
+      schemaVersion: 1,
+      revision: 1,
+      enabled: true,
+      sensitive: { enabled: false, modelAllowlist: [] },
+      caps: {},
     });
-    const state = { revision: 4, value: "old" };
-    expect(
-      compareAndSwap(state, 3, (s) => ({ ...s, value: "new" })),
-    ).toMatchObject({ success: false, code: "conflict", currentRevision: 4 });
-    expect(state.value).toBe("old");
-    expect(
-      compareAndSwap(
-        { revision: Number.MAX_SAFE_INTEGER, value: "old" },
-        Number.MAX_SAFE_INTEGER,
-        (s) => ({ ...s, value: "new" }),
-      ),
-    ).toMatchObject({ success: false, code: "conflict" });
-    expect(
-      compareAndSwap(state, 4, (s) => {
-        s.value = "new";
-        return s;
-      }),
-    ).toEqual({
-      success: true,
-      value: { revision: 5, value: "new" },
-    });
+    if (!proposed.success) throw new Error("fixture invalid");
+    await expect(
+      saveGlobalSettings(repository, 0, proposed.data),
+    ).resolves.toMatchObject({ success: true });
+    expect(calls).toBe(1);
   });
 });

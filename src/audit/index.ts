@@ -138,7 +138,13 @@ export function appendAudit(
     retentionDays > 30
   )
     throw new Error("Invalid audit retention days");
-  if (!validEvent(event) || Date.parse(event.timestamp) > now)
+  if (
+    !validEvent(event) ||
+    Date.parse(event.timestamp) > now ||
+    records.some(
+      (record) => !validEvent(record) || Date.parse(record.timestamp) > now,
+    )
+  )
     throw new Error("Invalid audit event");
   return [...records, event]
     .filter((x) => now - Date.parse(x.timestamp) <= retentionDays * DAY)

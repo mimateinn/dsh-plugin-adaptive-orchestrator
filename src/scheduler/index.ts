@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 export type Lane = "interactive" | "background";
 export type Route = {
@@ -120,6 +120,7 @@ export function aggregateCapacity(
 }
 
 type Outcome = {
+  sequence: number;
   result: "success" | "provider-error" | "rate-limited" | "timed-out";
   latencyMs: number;
   finishedAt: number;
@@ -162,7 +163,7 @@ export function scaleSafeSlots(
   now: number,
 ) {
   const last = [...x.outcomes]
-    .sort((a, b) => a.finishedAt - b.finishedAt)
+    .sort((a, b) => a.finishedAt - b.finishedAt || a.sequence - b.sequence)
     .slice(-20);
   const ten = last.slice(-10);
   const successes = last.filter((o) => o.result === "success");
@@ -214,6 +215,7 @@ export function createScheduler(
     modelCap?: number;
     interactiveReserve?: number;
     backgroundReserve?: number;
+    tokenFactory?: () => string;
   } = {},
 ) {
   const caps = {
@@ -224,6 +226,7 @@ export function createScheduler(
   };
   const interactiveReserve = config.interactiveReserve ?? 1;
   const backgroundReserve = config.backgroundReserve ?? 1;
+  const tokenFactory = config.tokenFactory ?? randomUUID;
   for (const [name, value] of Object.entries(caps))
     if (!Number.isInteger(value) || value < 1 || value > 64)
       throw new RangeError(`${name}Cap must be an integer from 1 to 64`);
@@ -432,8 +435,8 @@ export function createScheduler(
           (x) => x.requestId === requestId && x.state !== "released",
         );
         if (!l) return false;
-        l.cancellation = reason;
-        l.cancellationObservedSequence = ++s.eventSequence;
+        l.cancellation ??= reason;
+        l.cancellationObservedSequence ??= ++s.eventSequence;
         const f = s.fences.find((x) => x.leaseId === l.leaseId);
         if (f?.state === "armed") {
           f.state = "revoked";
@@ -461,7 +464,9 @@ export function createScheduler(
         )
           return false;
         const sequence = ++s.eventSequence;
-        const token = `provider-terminal-${sequence}-${leaseId}`;
+        const token = tokenFactory();
+        if (s.providerTerminalObservations.some((x) => x.token === token))
+          return false;
         s.providerTerminalObservations.push({
           token,
           leaseId,

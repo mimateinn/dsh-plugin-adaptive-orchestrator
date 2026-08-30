@@ -170,30 +170,30 @@ export function parseGlobalSettings(value: unknown): GlobalSettings {
   if (e.length) throw new ContractValidationError(e);
   return value as unknown as GlobalSettings;
 }
-export function compareAndSwap<T extends { revision: number }>(
-  current: T,
-  expectedRevision: number,
-  update: ((value: T) => T) | T,
-):
-  | { success: true; value: T }
-  | { success: false; code: "conflict"; currentRevision: number } {
-  if (
-    !Number.isSafeInteger(current.revision) ||
-    !Number.isSafeInteger(expectedRevision) ||
-    current.revision !== expectedRevision ||
-    expectedRevision >= Number.MAX_SAFE_INTEGER
-  )
-    return {
-      success: false,
-      code: "conflict",
-      currentRevision: current.revision,
-    };
-  const next =
-    typeof update === "function"
-      ? (update as (value: T) => T)(structuredClone(current))
-      : update;
-  return { success: true, value: { ...next, revision: expectedRevision + 1 } };
+export type SettingsCasResult =
+  | { success: true; value: GlobalSettings }
+  | { success: false; code: "conflict"; currentRevision: number };
+
+export interface SettingsRepository {
+  compareAndSwap(
+    expectedRevision: number,
+    next: GlobalSettings,
+  ): Promise<SettingsCasResult>;
 }
+
+export async function saveGlobalSettings(
+  repository: SettingsRepository,
+  expectedRevision: number,
+  proposed: unknown,
+): Promise<SettingsCasResult> {
+  const next = parseGlobalSettings(proposed);
+  if (next.revision !== expectedRevision + 1)
+    throw new ContractValidationError([
+      issue("/revision", "Revision must equal expectedRevision + 1"),
+    ]);
+  return repository.compareAndSwap(expectedRevision, next);
+}
+
 export interface RouteRequirements {
   schemaVersion: 1;
   taskClass: string;
