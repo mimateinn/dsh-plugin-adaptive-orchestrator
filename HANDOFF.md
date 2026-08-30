@@ -3,14 +3,15 @@
 # Handoff
 
 ## In progress
-**Task:** Finish the generic DSH role and AgentTeams admission seams before host/settings integration.
-**Completed so far:** Plugin durable persistence pushed (7a8ed07, 3ff9297). DSH role + spawn hooks committed on branch feat/delegation-roles-spawn-admission (54ee6b6f6, dd9b9dfba). DSH AgentTeams task-claim admission committed on branch feat/agent-teams-claim-admission as b4627cc36 with green gates; independent review running.
+**Task:** Finish generic DSH seams, then host/subscriptions/UI integration and the acceptance gate.
+**Completed so far:** Plugin host core (compatibility probe, SettingsService, captain policy guard/guidance, scheduler admission bridges) committed and pushed as c9b4da1 with 94/94 tests. DSH AgentTeams task-claim admission committed on branch feat/agent-teams-claim-admission (b4627cc36 + fix commits 5cc647800, 78a08eea2, 9765f6f16); final independent re-review running.
 **Changed files:**
-- DSH b4627cc36: taskClaim=2 capability, DelegationTaskClaimRequest{teamId,taskId,expectedRevision,attemptId,ownerId}, registerTaskClaim/prepareTaskClaim/reacquireTaskClaim with exact-once DelegationTaskClaimPreparation{commit,rollback}, TeamTaskAttemptId branding, attempt fencing on owner mutations, TeamTaskBoard prepare-before-append claim/reassign with commit-after-append + rollback-on-failure, recover() reacquire fail-closed, dispose() rollback, projection invariants, changeset + Agent Note + 4 new team.spec tests.
-**Next:** Await claim admission independent review; then implement plugin host/settings/subscription adapters and the full acceptance gate (integration, compatibility fixtures, GUI E2E, packaged smoke).
-**Important state:** Global mode remains visibly unsupported and must fail closed until AgentTeams spawn + claim admission and immutable roles are authoritative. Claim recovery uses durable facts, no opaque persisted tokens. AO-GATE-001 remains open.
-**Verification:** DSH claim branch gates: agent-team 55/55 (incl. 4 admission tests), subagent 222/222, full build:lib:host green, pre-commit lint green. Plugin pnpm check 80/80 green on 7a8ed07.
-**Independent review:** Persistence signoff PASS (6bc62de4). DSH architecture review 374304b7 fixes landed. Claim admission committed b4627cc36 with gates green (agent-team 55/55, subagent 222/222, build:lib:host, lint); independent review ae8b03cd-294b-4e6f-a633-83838e361b45 running. Plugin host-core implementation (compatibility/settings/policy/admission/subscriptions adapters) delegated to 9207a606-4e8b-459e-adb1-9e43d2415113; UI/acceptance gate still pending.
+- Plugin c9b4da1: src/host/{compatibility,settings,policy,admission,index}.ts, src/index.ts apply() wiring (Config.enabled/profileDirectory), 14 host unit tests, FEATURE_MAP/DECISIONS updates.
+- DSH claim branch: taskClaim=2 capability; prepare/commit/rollback/reacquire exact-once; TeamTaskAttemptId fencing; prepare-before-append claim; recovery gated and serialized per root (no stale-preparation publication), exception-safe handoff; overlap + fail-closed + leak regression tests; changeset + Agent Note.
+**Next:** Await final claim re-review; then subscriptions usage adapter, Settings UI + status panel, full acceptance gate (integration, compatibility fixtures, GUI E2E, packaged smoke), independent security/GUI reviews, real GUI verification, user visual acceptance, tagged release + fresh-install verification.
+**Important state:** Global mode remains visibly unsupported and must fail closed until spawn + claim admission and immutable roles are authoritative; host apply() only registers policy when the compatibility probe passes. AO-GATE-001 remains open.
+**Verification:** Plugin pnpm check 94/94 across 8 files green on c9b4da1. DSH claim branch: agent-team 58/58, subagent 222/222, build:lib:host green, lint/diff clean.
+**Independent review:** Persistence PASS (6bc62de4). Claim slice: reviews 37c2568a and fb3fcf19 required and we fixed the recovery gate, lease leaks, exception-safe handoff, and serialized per-root passes; final re-review 948584d6-7a5b-4392-bbc1-27b96f543c2b running. Plugin host security/architecture review NOT_RUN.
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.
