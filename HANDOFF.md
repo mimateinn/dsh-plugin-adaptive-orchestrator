@@ -3,21 +3,20 @@
 # Handoff
 
 ## In progress
-**Task:** Implement the approved Adaptive Orchestrator through verified plugin and generic DSH core layers.
-**Completed so far:** The executable plan and package scaffold exist; published DSH 0.1.2-alpha.2 dependencies install; the scaffold quality gate passes; three plugin pure-core tracks and one official DSH core-hook track are delegated in parallel.
+**Task:** Complete generic DSH enforcement hooks, then integrate the verified plugin host/settings layers.
+**Completed so far:** Package scaffold and pure contracts/routing/health/scheduler/evaluation/audit are pushed at plugin commit 3c77f945; pnpm check passes 50/50 tests plus format, lint, typecheck, and build. Official DSH commit 54ee6b6f6 adds verified one-shot and continuable DelegationAdmission leases (156 focused tests + package typecheck pass).
 **Changed files:**
-- package.json, pnpm-lock.yaml, tsconfig.json, tsdown.config.ts, cordis.patch.yml, .gitignore, .prettierignore, LICENSE — package and one-command gate.
-- src/index.ts, src/client/index.ts, tests/scaffold.test.ts — minimal verified host/client entrypoints and smoke test.
-- docs/superpowers/plans/2026-08-30-adaptive-orchestrator-implementation.md — executable implementation sequence.
-**Next:** Integrate delegated contracts/routing, scheduler, evaluation/audit, and official DSH admission-hook changes; rerun targeted and full gates; then implement host/settings/usage adapters.
-**Important state:** Official source is at ..\05 Notes\deepseek-harness-upstream on baseline 0a53fb55bea101816fa226bb964ae2bed71c343b. Public GitHub remote exists at https://github.com/mimateinn/dsh-plugin-adaptive-orchestrator. The plugin must not claim global support until authoritative direct-service and AgentTeams hooks pass.
-**Quick verification:** pnpm check currently passes with 1 test before delegated implementation lands.
-
+- src/contracts, src/core, src/scheduler, src/evaluation, src/audit, tests/unit — pure policy core and RED-first tests.
+- docs/FEATURE_MAP.md, docs/DECISIONS.md — implemented module relationships and pure-core boundary.
+- Official sibling checkout commit 54ee6b6f6 — generic SubagentRuntime admission service and lifecycle integration.
+**Next:** Integrate delegated immutable delegation roles and authoritative AgentTeams spawn/claim admission; repair independent pure-core review findings; then implement host/plugin settings and public subscription-usage adapter.
+**Important state:** Global support remains fail-closed and must not be claimed yet. AgentTeams admission and immutable roles are in progress. Official checkout is clean and ahead one committed subagent seam before new delegated edits. Public plugin remote is https://github.com/mimateinn/dsh-plugin-adaptive-orchestrator.
+**Quick verification:** plugin: pnpm check => 50/50 tests and build pass. DSH: focused SubagentRuntime service+continuation => 156/156 tests; tsc package => pass.
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.
 - DSH Desktop 2.0.3 packaged seams were inspected; official source checkout now exists at ..\05 Notes\deepseek-harness-upstream, baseline 0a53fb55bea101816fa226bb964ae2bed71c343b.
-- The package scaffold quality gate passes: format, lint, typecheck, one Vitest smoke test, and host/client builds.
+- The pure policy-core quality gate passes: format, lint, typecheck, 50 Vitest tests across 6 files, and host/client entry builds.
 - The user-approved icon SVG and exact PNG sizes are committed under assets/icon; no official standalone plugin-icon manifest convention is yet verified.
 
 ## Checklist
@@ -25,8 +24,8 @@
 - [x] User approved the icon concept; SVG and 16/32/48/128/256 PNG exports exist under assets/icon.
 - [x] Create implementation plan.
 - [x] Scaffold one-command quality gate and initial characterization test.
-- [ ] Implement plugin core and UI.
-- [ ] Implement/test thin DSH core hooks in an official source checkout.
+- [ ] Implement plugin core and UI (pure core complete; host/UI pending).
+- [ ] Implement/test thin DSH core hooks (SubagentRuntime complete; role and AgentTeams pending).
 - [ ] Run independent review and real GUI verification.
 - [x] Publish public GitHub repository (release still pending).
 
