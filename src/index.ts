@@ -178,6 +178,12 @@ export function apply(ctx: Context, config: Config = {}): void {
         exec.name,
         runtime.active,
         allowlist,
+        (name) => {
+          const definition = ctx.tools?.get?.(name);
+          return definition === undefined
+            ? undefined
+            : { name: definition.name };
+        },
       );
       if (decision.kind === "deny")
         return { kind: "deny", reason: decision.reason };

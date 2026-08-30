@@ -43,3 +43,8 @@
 - **Why:** the captain tool guard and prompt guidance must be enforceable, not prompt text alone, and unavailable seams must disable global mode visibly.
 - **Rejected:** hard-coding DSH tool names as the allowlist, because capability identity must not be granted by a name alone; and enabling global mode when any required seam is missing.
 - **Impact:** src/host registers ctx.systemPrompt.section and a tools/pre-execute listener only after the compatibility probe passes; unknown tools and callers without an authoritative role are denied with a delegation message. Admission bridges map the plugin scheduler to ctx.delegationAdmission spawn and task-claim seams with exact-once release.
+
+## 2026-09-01 — Tool trust binds to registry-resolved definitions
+- **Why:** a caller-supplied tool name alone cannot grant captain authorization; trust must resolve through the host tool registry at pre-execute time.
+- **Rejected:** name-only string allowlists, because a dynamic or MCP tool registered under an allowlisted name would inherit captain authorization.
+- **Impact:** decideTool requires the registry to resolve the exact tool definition and denies unresolvable or mis-resolved calls; the immutable role is proven at runtime (never fabricated) and missing roles fail closed. Residual limitation: the pre-execute seam exposes only the resolved name, so two plugins registering the same orchestration name is a host-level naming conflict this plugin cannot disambiguate — deployments must not register dynamic tools under orchestration capability names.

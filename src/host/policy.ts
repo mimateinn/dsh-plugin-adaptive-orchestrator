@@ -42,12 +42,26 @@ export const BUILTIN_CAPTAIN_TOOLS = [
   "message_send",
 ];
 
-/** Decide whether a tool call may proceed under the captain policy. */
+/** Registry-resolved tool identity (definition name), never the raw call stream. */
+export interface ResolvedTool {
+  readonly name: string;
+}
+
+/** Resolve the tool the host registry would actually execute for a call name. */
+export type ToolResolver = (name: string) => ResolvedTool | undefined;
+
+/**
+ * Decide whether a tool call may proceed under the captain policy. Trust
+ * binds to the REGISTRY-RESOLVED tool definition, not the caller-supplied
+ * name string: an unresolvable or mis-resolved call is denied even when the
+ * requested name sits in the allowlist.
+ */
 export function decideTool(
   role: RoleLike,
   toolName: string,
   enabled: boolean,
   allowlist: OrchestrationAllowlist,
+  resolver?: ToolResolver,
 ): ToolDecision {
   if (!enabled) return { kind: "allow" };
   if (role === "worker") return { kind: "allow" };
@@ -59,6 +73,21 @@ export function decideTool(
       reason:
         "delegation role is unavailable; global orchestration is not authoritative",
     };
+  }
+  if (resolver !== undefined) {
+    const resolved = resolver(toolName);
+    if (resolved === undefined) {
+      return {
+        kind: "deny",
+        reason: `"${toolName}" is not registered in the host tool registry`,
+      };
+    }
+    if (resolved.name !== toolName) {
+      return {
+        kind: "deny",
+        reason: `"${toolName}" resolved to a different tool definition`,
+      };
+    }
   }
   if (allowlist.has(toolName)) return { kind: "allow" };
   return {

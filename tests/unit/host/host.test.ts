@@ -179,6 +179,19 @@ describe("captain policy", () => {
       kind: "allow",
     });
   });
+
+  it("binds trust to the registry-resolved definition, not the call name string", () => {
+    const allowlist = new OrchestrationAllowlist(["todo"]);
+    expect(
+      decideTool("captain", "todo", true, allowlist, () => undefined),
+    ).toMatchObject({ kind: "deny" });
+    expect(
+      decideTool("captain", "todo", true, allowlist, () => ({ name: "other" })),
+    ).toMatchObject({ kind: "deny" });
+    expect(
+      decideTool("captain", "todo", true, allowlist, () => ({ name: "todo" })),
+    ).toEqual({ kind: "allow" });
+  });
 });
 
 describe("admission bridge", () => {
