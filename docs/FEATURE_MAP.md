@@ -9,7 +9,7 @@
 | Runtime contracts | src/contracts/ | Versioned settings, quota, routing, compatibility, CAS, canonical JSON | All trust boundaries and pure services |
 | Routing core | src/core/ | QuotaSnapshot, Candidate, RouteDecision, HealthState | Host and scheduler adapters |
 | Host composition | src/host/ | CompatibilityReport, SettingsService, captain tool guard and guidance, scheduler admission bridges | src/index.ts apply(); DSH system-prompt and tools/pre-execute seams |
-| Usage adapter | src/integrations/ (planned) | SubscriptionUsageService | Routing core |
+| Usage adapter | src/integrations/ | UsageSource with redacted drop of invalid QuotaSnapshot; NeutralUsageSource when the usage RPC is absent | Routing core and host wiring |
 | Delegation governor | src/scheduler/ | SchedulerState, QueueRecord, Lease, DispatchFence | Future DSH subagent and AgentTeams admission adapters |
 | Settings client | src/client/ (planned) | Typed settings/status RPC | DSH Settings UI |
 | New-model evaluator | src/evaluation/ | ModelEvaluation and EvaluationOutcome | Model registry and future probe adapter |
