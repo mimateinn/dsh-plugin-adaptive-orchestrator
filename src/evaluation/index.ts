@@ -35,6 +35,8 @@ export interface ModelEvaluation {
   revision: number;
   evidenceAt: string;
   outcomes: EvaluationOutcome[];
+  highestSequence: number;
+  evidenceIds: string[];
   consecutiveMandatoryFailures: number;
 }
 const THIRTY_DAYS = 30 * 86_400_000;
@@ -56,10 +58,29 @@ export function createEvaluation(
     revision: 0,
     evidenceAt,
     outcomes: [],
+    highestSequence: -1,
+    evidenceIds: [],
     consecutiveMandatoryFailures: 0,
   };
 }
+const outcomeKeys = new Set([
+  "schemaVersion",
+  "modelId",
+  "modelVersion",
+  "taskClass",
+  "probeId",
+  "probeCorpusVersion",
+  "sequence",
+  "startedAt",
+  "finishedAt",
+  "result",
+  "latencyMs",
+  "mandatoryTool",
+  "corpusHash",
+]);
 const validOutcome = (s: ModelEvaluation, o: EvaluationOutcome) =>
+  Object.keys(o).every((key) => outcomeKeys.has(key)) &&
+  Object.keys(o).length === outcomeKeys.size &&
   o.schemaVersion === 1 &&
   o.modelId === s.modelId &&
   o.modelVersion === s.modelVersion &&
@@ -110,9 +131,8 @@ export function recordOutcome(
   if (
     !validOutcome(state, outcome) ||
     Date.parse(outcome.finishedAt) > now ||
-    state.outcomes.some(
-      (x) => x.probeId === outcome.probeId || x.sequence === outcome.sequence,
-    )
+    outcome.sequence <= (state.highestSequence ?? -1) ||
+    (state.evidenceIds ?? []).includes(outcome.probeId)
   )
     throw new Error("Invalid evaluation outcome");
   const outcomes = [...state.outcomes, outcome]
@@ -143,6 +163,8 @@ export function recordOutcome(
     state: regressed ? "regressed" : state.state,
     status: regressed ? "regressed" : (state.status ?? state.state),
     outcomes,
+    highestSequence: outcome.sequence,
+    evidenceIds: [...(state.evidenceIds ?? []), outcome.probeId],
     revision: state.revision + 1,
     evidenceAt: outcome.finishedAt,
     consecutiveMandatoryFailures: outcome.mandatoryTool

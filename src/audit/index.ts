@@ -35,6 +35,10 @@ const object = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 const string = (x: unknown) =>
   typeof x === "string" && x.length > 0 && x.length <= 200 && x.trim() === x;
+const rfc3339Utc = (x: unknown) =>
+  typeof x === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(x) &&
+  Number.isFinite(Date.parse(x));
 function validEvent(x: unknown): x is AuditEvent {
   if (
     !object(x) ||
@@ -53,8 +57,7 @@ function validEvent(x: unknown): x is AuditEvent {
     return false;
   if (
     !string(x.eventId) ||
-    typeof x.timestamp !== "string" ||
-    !Number.isFinite(Date.parse(x.timestamp)) ||
+    !rfc3339Utc(x.timestamp) ||
     !kinds.has(x.kind as string) ||
     !Array.isArray(x.reasonCodes) ||
     x.reasonCodes.length > 32 ||
@@ -146,7 +149,10 @@ export function encodeAuditStore(records: readonly AuditEvent[]): string {
     throw new Error("Audit store too large");
   return raw;
 }
-export function parseAuditStore(raw: string): {
+export function parseAuditStore(
+  raw: string,
+  now = Date.now(),
+): {
   records: AuditEvent[];
   corrupted: boolean;
   degraded: boolean;
@@ -165,6 +171,7 @@ export function parseAuditStore(raw: string): {
       !Array.isArray(x.records) ||
       x.records.length > MAX_RECORDS ||
       !x.records.every(validEvent) ||
+      x.records.some((record) => Date.parse(record.timestamp) > now) ||
       typeof x.checksum !== "string" ||
       x.checksum !== canonicalSha256({ schemaVersion: 1, records: x.records })
     )

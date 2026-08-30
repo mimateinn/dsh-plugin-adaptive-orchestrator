@@ -32,6 +32,8 @@ export type Lease = {
   orphanedAt?: number;
   cancellation?: "cancel" | "pause" | "remove" | "missing";
   terminalOutcome?: "succeeded" | "failed" | "cancelled";
+  cancellationObservedSequence?: number;
+  providerTerminalSequence?: number;
 };
 export type DispatchFence = {
   id: string;
@@ -49,6 +51,7 @@ export type SchedulerState = {
   deficit: Record<Lane, number>;
   sequence: number;
   lastStart: Record<Lane, number>;
+  eventSequence: number;
 };
 const initial = (): SchedulerState => ({
   queue: [],
@@ -57,6 +60,7 @@ const initial = (): SchedulerState => ({
   deficit: { interactive: 0, background: 0 },
   sequence: 0,
   lastStart: { interactive: 0, background: 0 },
+  eventSequence: 0,
 });
 
 export class MemoryStateStore {
@@ -165,7 +169,6 @@ export function scaleSafeSlots(
   if (
     lastFive.length === 5 &&
     lastFive.every((o) => o.result === "success") &&
-    last.length === 20 &&
     last.filter((o) => o.result !== "success").length / last.length < 0.05 &&
     !last.some((o) => o.result === "rate-limited") &&
     p95 <= baseline * 1.5 &&
@@ -420,6 +423,7 @@ export function createScheduler(
         );
         if (!l) return false;
         l.cancellation = reason;
+        l.cancellationObservedSequence = ++s.eventSequence;
         const f = s.fences.find((x) => x.leaseId === l.leaseId);
         if (f?.state === "armed") {
           f.state = "revoked";
@@ -443,7 +447,12 @@ export function createScheduler(
           fence?.state !== "consumed"
         )
           return false;
-        l.terminalOutcome = outcome;
+        l.providerTerminalSequence = ++s.eventSequence;
+        l.terminalOutcome =
+          l.cancellationObservedSequence !== undefined &&
+          l.cancellationObservedSequence < l.providerTerminalSequence
+            ? "cancelled"
+            : outcome;
         l.state = "released";
         return true;
       });

@@ -37,6 +37,33 @@ describe("Phase 1 contracts", () => {
         expect.objectContaining({ path: "/caps", code: "invariant" }),
       );
   });
+  it("recursively rejects malformed route requirements and settings", () => {
+    const route = {
+      schemaVersion: 1,
+      taskClass: " code ",
+      requiredCapabilityIds: ["x", "x"],
+      requiredToolIds: [""],
+      requiredModalities: [],
+      inputContextTokens: 1,
+      expectedOutputTokens: 1,
+      contextSafetyReserveTokens: 1,
+      minimumContextTokens: 3,
+      sensitive: "false",
+      allowedModelIds: [],
+      extra: true,
+    };
+    expect(validateRouteRequirements(route)).toMatchObject({ success: false });
+    expect(
+      validateGlobalSettings({
+        schemaVersion: 1,
+        revision: 0,
+        enabled: true,
+        sensitive: { enabled: false, modelAllowlist: [" bad "], extra: true },
+        caps: { extra: 1 },
+        providerBurnWeights: { " bad ": Number.NaN },
+      }),
+    ).toMatchObject({ success: false });
+  });
   it("checks route token sum", () => {
     const r = validateRouteRequirements({
       schemaVersion: 1,

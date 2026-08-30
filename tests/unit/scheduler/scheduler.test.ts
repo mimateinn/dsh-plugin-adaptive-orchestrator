@@ -65,6 +65,22 @@ describe("durable adaptive scheduler", () => {
       ),
     ).toBe(2);
   });
+  it("grows after exactly five ordered trailing successes", () => {
+    expect(
+      scaleSafeSlots(
+        {
+          safeSlots: 1,
+          lastIncreaseAt: 0,
+          outcomes: [4, 1, 5, 2, 3].map((finishedAt) => ({
+            result: "success" as const,
+            latencyMs: 100,
+            finishedAt,
+          })),
+        },
+        60000,
+      ),
+    ).toBe(2);
+  });
   it("scales out one per minute and halves immediately", () => {
     expect(
       scaleSafeSlots(
@@ -348,6 +364,10 @@ describe("adversarial scheduler specification", () => {
       expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(
         true,
       );
+      expect(
+        store.read().state.leases.find((lease) => lease.leaseId === l.leaseId)
+          ?.terminalOutcome,
+      ).toBe("cancelled");
       expect(s.providerTerminal(l.leaseId, l.attemptId, "succeeded")).toBe(
         false,
       );

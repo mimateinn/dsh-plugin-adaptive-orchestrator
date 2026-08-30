@@ -38,6 +38,28 @@ const uint = (v: unknown, min: number, max: number) =>
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+const boundedString = (value: unknown) =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= 200 &&
+  value.trim() === value;
+function validateStringArray(
+  value: unknown,
+  path: string,
+  max: number,
+  errors: ValidationIssue[],
+) {
+  if (!Array.isArray(value) || value.length > max) {
+    errors.push(issue(path, `Expected array with at most ${max} items`));
+    return;
+  }
+  value.forEach((item, index) => {
+    if (!boundedString(item))
+      errors.push(issue(`${path}/${index}`, "Expected trimmed string"));
+  });
+  if (new Set(value).size !== value.length)
+    errors.push(issue(path, "Expected unique items"));
+}
 export function assertSchemaVersion(value: unknown): asserts value is 1 {
   if (value !== 1) {
     if (typeof value === "number" && value > 1)
@@ -70,14 +92,15 @@ export function parseGlobalSettings(value: unknown): GlobalSettings {
   if (typeof value.enabled !== "boolean")
     e.push(issue("/enabled", "Expected boolean"));
   const s = value.sensitive;
-  if (
-    !object(s) ||
-    typeof s.enabled !== "boolean" ||
-    !Array.isArray(s.modelAllowlist) ||
-    s.modelAllowlist.length > 256 ||
-    new Set(s.modelAllowlist).size !== s.modelAllowlist.length
-  )
-    e.push(issue("/sensitive", "Invalid sensitive policy"));
+  if (!object(s)) e.push(issue("/sensitive", "Expected object"));
+  else {
+    for (const key of Object.keys(s))
+      if (!["enabled", "modelAllowlist"].includes(key))
+        e.push(issue(`/sensitive/${key}`, "Unknown property", "unknown_key"));
+    if (typeof s.enabled !== "boolean")
+      e.push(issue("/sensitive/enabled", "Expected boolean"));
+    validateStringArray(s.modelAllowlist, "/sensitive/modelAllowlist", 256, e);
+  }
   const c = value.caps;
   if (!object(c)) e.push(issue("/caps", "Expected caps object"));
   else {
@@ -92,6 +115,9 @@ export function parseGlobalSettings(value: unknown): GlobalSettings {
       queueCapacity: [1, 4096],
       configuredHorizonMs: [3600000, 2678400000],
     };
+    for (const key of Object.keys(c))
+      if (!(key in ranges))
+        e.push(issue(`/caps/${key}`, "Unknown property", "unknown_key"));
     for (const [k, [a, b]] of Object.entries(ranges))
       if (!uint(c[k], a, b))
         e.push(issue(`/caps/${k}`, `Expected integer ${a}..${b}`));
@@ -111,8 +137,34 @@ export function parseGlobalSettings(value: unknown): GlobalSettings {
         e.push(issue("/caps", "Reserve sum exceeds globalHardCap"));
     }
   }
-  if (!uint(value.burnWeight, 0, 4))
-    e.push(issue("/burnWeight", "Expected number 0..4"));
+  if (value.providerBurnWeights !== undefined) {
+    if (
+      !object(value.providerBurnWeights) ||
+      Object.keys(value.providerBurnWeights).length > 256
+    )
+      e.push(issue("/providerBurnWeights", "Expected at most 256 weights"));
+    else
+      for (const [key, weight] of Object.entries(value.providerBurnWeights)) {
+        if (!boundedString(key))
+          e.push(issue(`/providerBurnWeights/${key}`, "Invalid provider ID"));
+        if (
+          typeof weight !== "number" ||
+          !Number.isFinite(weight) ||
+          weight < 0 ||
+          weight > 4
+        )
+          e.push(
+            issue(`/providerBurnWeights/${key}`, "Expected finite number 0..4"),
+          );
+      }
+  }
+  if (
+    typeof value.burnWeight !== "number" ||
+    !Number.isFinite(value.burnWeight) ||
+    value.burnWeight < 0 ||
+    value.burnWeight > 4
+  )
+    e.push(issue("/burnWeight", "Expected finite number 0..4"));
   if (!uint(value.auditRetentionDays, 1, 30))
     e.push(issue("/auditRetentionDays", "Expected integer 1..30"));
   if (e.length) throw new ContractValidationError(e);
@@ -338,16 +390,45 @@ export function parseRouteRequirements(v: unknown): RouteRequirements {
   if (!object(v))
     throw new ContractValidationError([issue("/", "Expected object")]);
   assertSchemaVersion(v.schemaVersion);
+  const e: ValidationIssue[] = [];
+  const allowed = new Set([
+    "schemaVersion",
+    "taskClass",
+    "requiredCapabilityIds",
+    "requiredToolIds",
+    "requiredModalities",
+    "inputContextTokens",
+    "expectedOutputTokens",
+    "contextSafetyReserveTokens",
+    "minimumContextTokens",
+    "sensitive",
+    "allowedModelIds",
+  ]);
+  for (const key of Object.keys(v))
+    if (!allowed.has(key))
+      e.push(issue(`/${key}`, "Unknown property", "unknown_key"));
+  if (!boundedString(v.taskClass))
+    e.push(issue("/taskClass", "Expected trimmed string"));
+  validateStringArray(
+    v.requiredCapabilityIds,
+    "/requiredCapabilityIds",
+    128,
+    e,
+  );
+  validateStringArray(v.requiredToolIds, "/requiredToolIds", 128, e);
+  validateStringArray(v.requiredModalities, "/requiredModalities", 128, e);
+  validateStringArray(v.allowedModelIds, "/allowedModelIds", 256, e);
+  if (typeof v.sensitive !== "boolean")
+    e.push(issue("/sensitive", "Expected boolean"));
   const fields = [
     "inputContextTokens",
     "expectedOutputTokens",
     "contextSafetyReserveTokens",
     "minimumContextTokens",
   ] as const;
-  const e: ValidationIssue[] = [];
-  for (const f of fields)
-    if (!uint(v[f], 0, 10000000))
-      e.push(issue(`/${f}`, "Expected token count 0..10000000"));
+  for (const field of fields)
+    if (!uint(v[field], 0, 10000000))
+      e.push(issue(`/${field}`, "Expected token count 0..10000000"));
   const sum =
     Number(v.inputContextTokens) +
     Number(v.expectedOutputTokens) +

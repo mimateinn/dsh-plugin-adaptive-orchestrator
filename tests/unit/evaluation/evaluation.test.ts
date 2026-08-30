@@ -79,6 +79,17 @@ describe("model evaluation", () => {
     for (let i = 0; i < 101; i++)
       many = recordOutcome(many, outcome(i), many.revision, now + 1000);
     expect(many.outcomes).toHaveLength(100);
+    expect(() =>
+      recordOutcome(many, outcome(0), many.revision, now + 1000),
+    ).toThrow();
+    expect(() =>
+      recordOutcome(
+        many,
+        { ...outcome(101), extra: true } as never,
+        many.revision,
+        now + 1000,
+      ),
+    ).toThrow();
   });
   it("rejects mixed corpus hashes and leaves state unchanged on CAS conflict", () => {
     let state = fresh();
