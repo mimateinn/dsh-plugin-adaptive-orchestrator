@@ -107,7 +107,10 @@ export function createTaskClaimHandler(options: AdmissionBridgeOptions): {
     if (routeId === undefined)
       throw new Error(`no eligible route for task claim "${request.taskId}"`);
     return gateway.acquire({
-      requestId: `${request.teamId}:${request.taskId}`,
+      // Request identity equals the attempt so pre-dispatch cancel(requestId)
+      // targets this lease; reacquire after a terminal/rollback is admitted
+      // again with the same attempt id.
+      requestId: request.attemptId,
       attemptId: request.attemptId,
       lane: "background",
       routeId,

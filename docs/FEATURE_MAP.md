@@ -15,5 +15,6 @@
 | New-model evaluator | src/evaluation/ | ModelEvaluation and EvaluationOutcome | Model registry and future probe adapter |
 | Privacy-safe audit | src/audit/ | AuditEvent, integrity envelope, salted route hash | Host status/RPC and persistent storage adapter |
 | Profile-local persistence | src/persistence/ | Durable cross-process atomic SettingsRepository and identity-keyed EvaluationStore; canonical mkdir locks never steal ambiguous ownership | Host settings and evaluation services; validates through contracts/evaluation parsers |
+| Headless integration smoke | tests/integration/ | apply() against a real Cordis context with stubbed seams; real scheduler gateway acquire/release round-trip; settings CAS activation | Host policy, admission bridges, SettingsService |
 
 Planned paths are not evidence of implementation. Update rows when files and contracts exist.
