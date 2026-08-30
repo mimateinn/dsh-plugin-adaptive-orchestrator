@@ -1,0 +1,69 @@
+{
+  "name": "dsh-plugin-adaptive-orchestrator",
+  "version": "0.1.0-alpha.0",
+  "description": "Quota-aware adaptive worker orchestration for DeepSeek Harness",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.mjs",
+  "types": "lib/index.d.mts",
+  "files": [
+    "lib",
+    "assets/icon",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "oxlint .",
+    "format:check": "prettier --check .",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings/client",
+        "@deepseek-ai/dsh-client-ui-slots/client",
+        "@deepseek-ai/dsh-client-connection/client"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-connection": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-subagent": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.2-alpha.2",
+    "@deepseek-ai/dsh-tools": "^0.1.2-alpha.2",
+    "@deepseek-ai/cordis": "^4.0.2",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "~18.3.1",
+    "oxlint": "1.76.0",
+    "prettier": "^3.6.2",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.mts",
+      "import": "./lib/index.mjs"
+    },
+    "./client": {
+      "types": "./lib/client/index.d.mts",
+      "import": "./lib/client/index.mjs"
+    }
+  }
+}

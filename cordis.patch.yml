@@ -1,0 +1,3 @@
+- id: adaptive-orchestrator
+  name: dsh-plugin-adaptive-orchestrator
+  config: {}

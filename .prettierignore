@@ -1,0 +1,11 @@
+node_modules/
+lib/
+coverage/
+test-results/
+playwright-report/
+assets/icon/*.png
+docs/superpowers/specs/
+docs/superpowers/plans/
+AGENTS.md
+HANDOFF.md
+docs/*.md
