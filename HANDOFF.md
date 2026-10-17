@@ -3,6 +3,7 @@
 # Handoff
 
 ## In progress
+- 2026-10-18: Tagged GitHub prerelease **v0.1.0-alpha.1** (`8c60918`) for Desktop 2.0.17 / Harness 0.2.0-rc.2 host peers. https://github.com/mimateinn/dsh-plugin-adaptive-orchestrator/releases/tag/v0.1.0-alpha.1. Still not installed in the desktop profile.
 **Task:** Finish generic DSH seams, then host/subscriptions/UI integration and the acceptance gate.
 **Completed so far:** Plugin host core (compatibility probe, SettingsService, captain policy guard/guidance, scheduler admission bridges) committed and pushed as c9b4da1 with 94/94 tests. DSH AgentTeams task-claim admission committed on branch feat/agent-teams-claim-admission (b4627cc36 + fix commits 5cc647800, 78a08eea2, 9765f6f16); final independent re-review running.
 **Changed files:**
@@ -16,7 +17,7 @@
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.
-- Live Desktop is **2.0.17** at `%LOCALAPPDATA%\Programs\DSH Desktop`, pinning Harness **0.2.0-rc.2**. Working source checkout `C:\Users\dicks\deepseek-harness` is detached at `dsh-v0.2.0-rc.2` (`639ed01539`). Two stashes kept (2026-09-08 and 2026-10-18). Peer ranges now include `0.2.0-rc.*`. Official DeepSeek ids are `deepseek-flash` and `deepseek-v4-pro`. `@mimateinn/dsh-i18n` git is **0.2.8**. 2026-09-09 multi-agent UI lag was i18n observers (not this plugin; not installed in the desktop profile).
+- Live Desktop is **2.0.17** at `%LOCALAPPDATA%\Programs\DSH Desktop`, pinning Harness **0.2.0-rc.2**. Working source checkout `C:\Users\dicks\deepseek-harness` is detached at `dsh-v0.2.0-rc.2` (`639ed01539`). Two stashes kept (2026-09-08 and 2026-10-18). Peer ranges now include `0.2.0-rc.*`. Package version is **0.1.0-alpha.1**. Official DeepSeek ids are `deepseek-flash` and `deepseek-v4-pro`. `@mimateinn/dsh-i18n` git is **0.2.8**. 2026-09-09 multi-agent UI lag was i18n observers (not this plugin; not installed in the desktop profile).
 - The repaired pure policy-core gate passes: format, zero-warning lint, typecheck, 56 Vitest tests across 6 files, and host/client entry builds (commit 12c3ad4).
 - The user-approved icon SVG and exact PNG sizes are committed under assets/icon; no official standalone plugin-icon manifest convention is yet verified.
 
@@ -28,7 +29,7 @@
 - [ ] Implement plugin core and UI (pure core complete; host/UI pending).
 - [ ] Implement/test thin DSH core hooks (SubagentRuntime complete; role and AgentTeams pending).
 - [ ] Run independent review and real GUI verification.
-- [x] Publish public GitHub repository (release still pending).
+- [x] Publish public GitHub repository (prerelease v0.1.0-alpha.1 published 2026-10-18).
 
 ## Known hazards
 - The installed DSH app.asar path is a packaged file, not a source checkout.
