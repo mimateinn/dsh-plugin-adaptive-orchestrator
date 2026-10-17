@@ -16,7 +16,7 @@
 ## Current state
 - Repository is correctly located at H:\3 Apps\2026-08_dsh-adaptive-orchestrator\03 Src.
 - Approved design candidate: docs/superpowers/specs/2026-08-30-adaptive-orchestrator-design.md.
-- DSH Desktop 2.0.3 packaged seams were inspected; official source checkout now exists at ..\05 Notes\deepseek-harness-upstream, baseline 0a53fb55bea101816fa226bb964ae2bed71c343b.
+- Live Desktop is **2.0.17** at `%LOCALAPPDATA%\Programs\DSH Desktop`, pinning Harness **0.2.0-rc.2**. Working source checkout `C:\Users\dicks\deepseek-harness` is detached at `dsh-v0.2.0-rc.2` (`639ed01539`). Two stashes kept (2026-09-08 and 2026-10-18). Peer ranges now include `0.2.0-rc.*`. Official DeepSeek ids are `deepseek-flash` and `deepseek-v4-pro`. `@mimateinn/dsh-i18n` git is **0.2.8**. 2026-09-09 multi-agent UI lag was i18n observers (not this plugin; not installed in the desktop profile).
 - The repaired pure policy-core gate passes: format, zero-warning lint, typecheck, 56 Vitest tests across 6 files, and host/client entry builds (commit 12c3ad4).
 - The user-approved icon SVG and exact PNG sizes are committed under assets/icon; no official standalone plugin-icon manifest convention is yet verified.
 
