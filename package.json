@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-adaptive-orchestrator",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Quota-aware adaptive worker orchestration for DeepSeek Harness",
   "license": "MIT",
   "type": "module",
